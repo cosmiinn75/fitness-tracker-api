@@ -3,6 +3,8 @@ package com.cosmin.fitness_tracker_api.Service;
 import com.cosmin.fitness_tracker_api.DTO.AuthRequest;
 import com.cosmin.fitness_tracker_api.DTO.AuthResponse;
 import com.cosmin.fitness_tracker_api.DTO.LoginRequest;
+import com.cosmin.fitness_tracker_api.Exception.AccountAlreadyExistsException;
+import com.cosmin.fitness_tracker_api.Exception.InvalidCredentialsException;
 import com.cosmin.fitness_tracker_api.Model.User;
 import com.cosmin.fitness_tracker_api.Repository.UserRepository;
 import com.cosmin.fitness_tracker_api.Security.JWTUtil;
@@ -24,7 +26,7 @@ public class AuthService {
 
     public AuthResponse register(AuthRequest authRequest){
         if(userRepository.existsByUsername(authRequest.username()) || userRepository.existsByEmail(authRequest.email())){
-            throw new RuntimeException("Username or Email already exists");
+            throw new AccountAlreadyExistsException("Username or Email already exists");
         }
         User user = new User();
         user.setUsername(authRequest.username());
@@ -37,10 +39,10 @@ public class AuthService {
     public AuthResponse login(LoginRequest authRequest){
 
         User user = userRepository.findByUsername(authRequest.username())
-                .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credentials"));
 
         if(!passwordEncoder.matches(authRequest.password(), user.getPassword())){
-            throw new RuntimeException("Invalid credentials");
+            throw new InvalidCredentialsException("Invalid credentials");
         }
 
         return new  AuthResponse(jwtUtil.generateToken(user.getUsername()));

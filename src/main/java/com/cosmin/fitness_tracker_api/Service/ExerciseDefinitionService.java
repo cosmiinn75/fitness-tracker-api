@@ -2,6 +2,8 @@ package com.cosmin.fitness_tracker_api.Service;
 
 import com.cosmin.fitness_tracker_api.DTO.ExerciseDefinitionRequest;
 import com.cosmin.fitness_tracker_api.DTO.ExerciseDefinitionResponse;
+import com.cosmin.fitness_tracker_api.Exception.ExerciseDefinitionNotFoundException;
+import com.cosmin.fitness_tracker_api.Exception.NameAlreadyExistsException;
 import com.cosmin.fitness_tracker_api.Model.ExerciseDefinition;
 import com.cosmin.fitness_tracker_api.Repository.ExerciseDefinitionRepository;
 import org.springframework.stereotype.Service;
@@ -21,7 +23,7 @@ public class ExerciseDefinitionService {
     @Transactional
     public ExerciseDefinitionResponse addExerciseDefinition(ExerciseDefinitionRequest request) {
         if (exerciseDefinitionRepository.existsByName(request.exerciseName())) {
-            throw new RuntimeException("Exercise definition already exists");
+            throw new NameAlreadyExistsException("Exercise name already exists");
         }
 
         ExerciseDefinition exerciseDefinition = new ExerciseDefinition();
@@ -44,7 +46,7 @@ public class ExerciseDefinitionService {
     @Transactional(readOnly = true)
     public ExerciseDefinitionResponse findExerciseDefinitionById(Long id) {
         ExerciseDefinition exerciseDefinition = exerciseDefinitionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Exercise definition not found"));
+                .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Exercise definition not found"));
 
         return toExerciseDefinitionResponse(exerciseDefinition);
     }
@@ -52,7 +54,7 @@ public class ExerciseDefinitionService {
     @Transactional
     public ExerciseDefinitionResponse updateExerciseDefinition(Long id, ExerciseDefinitionRequest request) {
         ExerciseDefinition exerciseDefinition = exerciseDefinitionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Exercise definition not found"));
+                .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Exercise definition not found"));
 
         exerciseDefinition.setName(request.exerciseName());
         exerciseDefinition.setMuscleGroup(request.muscleGroup());

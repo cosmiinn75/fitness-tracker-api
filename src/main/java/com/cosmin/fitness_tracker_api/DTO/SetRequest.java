@@ -1,17 +1,19 @@
 package com.cosmin.fitness_tracker_api.DTO;
 
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.*;
 
 public record SetRequest(
 
+        @NotNull
         @PositiveOrZero
         Double weight,
 
+        @NotNull
         @Positive
+        @Min(1)
+        @Max(100)
         Integer reps,
+
 
         @Min(0)
         @Max(5)

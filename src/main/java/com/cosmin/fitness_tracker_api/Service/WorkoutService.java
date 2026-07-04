@@ -2,11 +2,12 @@ package com.cosmin.fitness_tracker_api.Service;
 
 
 import com.cosmin.fitness_tracker_api.DTO.*;
+import com.cosmin.fitness_tracker_api.Exception.InvalidBodyException;
+import com.cosmin.fitness_tracker_api.Exception.UserNotAuthException;
 import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.*;
 import com.cosmin.fitness_tracker_api.Repository.UserRepository;
 
-import org.hibernate.jdbc.Work;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -146,7 +147,7 @@ public class WorkoutService {
         Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername).orElseThrow(() -> new RuntimeException("Workout not found"));
 
         if(request.exerciseRequests() == null || request.exerciseRequests().isEmpty()) {
-            throw new  RuntimeException("Exercise requests must have at least one exercise");
+            throw new InvalidBodyException("Exercise requests must have at least one exercise");
         }
 
         workout.setWorkoutName(request.workoutName());
@@ -178,7 +179,7 @@ public class WorkoutService {
             List<SetRequest> setRequests = exerciseRequest.setRequests();
 
             if(setRequests == null || setRequests.isEmpty()) {
-                throw new RuntimeException("Exercise must have at least one set");
+                throw new InvalidBodyException("Exercise must have at least one set");
             }
 
             List<SetResponse> setResponses = new ArrayList<>();
@@ -207,7 +208,7 @@ public class WorkoutService {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null || !authentication.isAuthenticated()) {
-            throw new RuntimeException("User is not authenticated");
+            throw new UserNotAuthException("User is not authenticated");
         }
 
         return authentication.getName();

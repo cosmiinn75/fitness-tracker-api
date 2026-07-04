@@ -1,6 +1,7 @@
 package com.cosmin.fitness_tracker_api.Model;
 
 
+import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import jakarta.persistence.*;
 
 @Entity
@@ -14,7 +15,8 @@ public class ExerciseDefinition {
 
     private String name;
 
-    private String muscleGroup;
+    @Enumerated(EnumType.STRING)
+    private MuscleGroup muscleGroup;
 
     public ExerciseDefinition() {
     }
@@ -35,11 +37,11 @@ public class ExerciseDefinition {
         this.id = id;
     }
 
-    public String getMuscleGroup() {
+    public MuscleGroup getMuscleGroup() {
         return muscleGroup;
     }
 
-    public void setMuscleGroup(String muscleGroup) {
+    public void setMuscleGroup(MuscleGroup muscleGroup) {
         this.muscleGroup = muscleGroup;
     }
 }
