@@ -2,11 +2,9 @@ package com.cosmin.fitness_tracker_api.Service;
 
 
 import com.cosmin.fitness_tracker_api.DTO.*;
-import com.cosmin.fitness_tracker_api.Exception.InvalidBodyException;
-import com.cosmin.fitness_tracker_api.Exception.UserNotAuthException;
+import com.cosmin.fitness_tracker_api.Exception.*;
 import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.*;
-import com.cosmin.fitness_tracker_api.Repository.UserRepository;
 
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -36,11 +34,8 @@ public class WorkoutService {
     @Transactional
     public WorkoutResponse createWorkout(WorkoutRequest request) {
         User currentUser = userRepository.findByUsername(getCurrentUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-        if (request.exerciseRequests() == null || request.exerciseRequests().isEmpty()) {
-            throw new RuntimeException("Workout must have at least one exercise");
-        }
 
         Workout workout = new Workout();
         workout.setWorkoutName(request.workoutName());
@@ -48,50 +43,7 @@ public class WorkoutService {
         workout.setUser(currentUser);
 
         Workout savedWorkout = workoutRepository.save(workout);
-
-        List<ExerciseRequest> exerciseRequests = request.exerciseRequests();
-        List<ExerciseResponse> exerciseResponses = new ArrayList<>();
-
-        for (int i = 0; i < exerciseRequests.size(); i++) {
-            ExerciseRequest exerciseRequest = exerciseRequests.get(i);
-
-            ExerciseDefinition exerciseDefinition = exerciseDefinitionRepository
-                    .findById(exerciseRequest.exerciseDefinitionId())
-                    .orElseThrow(() -> new RuntimeException("Exercise definition not found"));
-
-            WorkoutExercise workoutExercise = new WorkoutExercise();
-            workoutExercise.setWorkout(savedWorkout);
-            workoutExercise.setExerciseNumber(i + 1);
-            workoutExercise.setExerciseDefinition(exerciseDefinition);
-
-            WorkoutExercise savedWorkoutExercise = workoutExerciseRepository.save(workoutExercise);
-
-            List<SetRequest> setRequests = exerciseRequest.setRequests();
-
-            if (setRequests == null || setRequests.isEmpty()) {
-                throw new RuntimeException("Exercise must have at least one set");
-            }
-
-            List<SetResponse> setResponses = new ArrayList<>();
-
-            for (int j = 0; j < setRequests.size(); j++) {
-                SetRequest setRequest = setRequests.get(j);
-
-                ExerciseSet exerciseSet = new ExerciseSet();
-                exerciseSet.setWorkoutExercise(savedWorkoutExercise);
-                exerciseSet.setSetNumber(j + 1);
-                exerciseSet.setReps(setRequest.reps());
-                exerciseSet.setRir(setRequest.rir());
-                exerciseSet.setWeight(setRequest.weight());
-
-                ExerciseSet savedSet = exerciseSetRepository.save(exerciseSet);
-
-                setResponses.add(toSetResponse(savedSet));
-            }
-
-            exerciseResponses.add(toExerciseResponse(savedWorkoutExercise,setResponses));
-        }
-
+        List<ExerciseResponse> exerciseResponses = createWorkoutExercisesFromRequest(savedWorkout,request.exerciseRequests());
         return toWorkoutResponse(savedWorkout, exerciseResponses);
     }
 
@@ -144,11 +96,9 @@ public class WorkoutService {
     public WorkoutResponse replaceWorkout(Long id , WorkoutRequest request) {
         String currentUsername = getCurrentUsername();
 
-        Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername).orElseThrow(() -> new RuntimeException("Workout not found"));
+        Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername)
+                .orElseThrow(() -> new WorkoutNotFoundException("Workout not found"));
 
-        if(request.exerciseRequests() == null || request.exerciseRequests().isEmpty()) {
-            throw new InvalidBodyException("Exercise requests must have at least one exercise");
-        }
 
         workout.setWorkoutName(request.workoutName());
         workout.setDate(request.date());
@@ -162,43 +112,9 @@ public class WorkoutService {
 
         workoutExerciseRepository.deleteByWorkout(workout);
 
-        List<ExerciseResponse> exerciseResponses = new ArrayList<>();
-
-        for(int i = 0 ; i < request.exerciseRequests().size(); i++) {
-            ExerciseRequest exerciseRequest = request.exerciseRequests().get(i);
-
-            ExerciseDefinition exerciseDefinition =
-                    exerciseDefinitionRepository.findById(exerciseRequest.exerciseDefinitionId()).orElseThrow(() -> new RuntimeException("Exercise definition not found"));
-            WorkoutExercise workoutExercise = new WorkoutExercise();
-            workoutExercise.setWorkout(workout);
-            workoutExercise.setExerciseNumber(i + 1);
-            workoutExercise.setExerciseDefinition(exerciseDefinition);
-
-            WorkoutExercise savedWorkoutExercise = workoutExerciseRepository.save(workoutExercise);
-
-            List<SetRequest> setRequests = exerciseRequest.setRequests();
-
-            if(setRequests == null || setRequests.isEmpty()) {
-                throw new InvalidBodyException("Exercise must have at least one set");
-            }
-
-            List<SetResponse> setResponses = new ArrayList<>();
-            for(int j = 0 ; j < setRequests.size(); j++) {
-                SetRequest setRequest = setRequests.get(j);
-
-                ExerciseSet exerciseSet = new ExerciseSet();
-                exerciseSet.setWorkoutExercise(savedWorkoutExercise);
-                exerciseSet.setSetNumber(j + 1);
-                exerciseSet.setReps(setRequest.reps());
-                exerciseSet.setRir(setRequest.rir());
-                exerciseSet.setWeight(setRequest.weight());
-
-                ExerciseSet savedSet = exerciseSetRepository.save(exerciseSet);
-                setResponses.add(toSetResponse(savedSet));
-            }
-
-            exerciseResponses.add(toExerciseResponse(savedWorkoutExercise,setResponses));
-        }
+        List<ExerciseResponse> exerciseResponses =
+                createWorkoutExercisesFromRequest(workout,
+                                                request.exerciseRequests());
 
         return toWorkoutResponse(workout,exerciseResponses);
     }
@@ -260,6 +176,57 @@ public class WorkoutService {
                 exerciseSet.getRir()
         );
     }
+    private List<ExerciseResponse> createWorkoutExercisesFromRequest(Workout workout , List<ExerciseRequest> exerciseRequests) {
+
+        List<ExerciseResponse> exerciseResponses = new ArrayList<>();
+
+        for(int i = 0 ; i < exerciseRequests.size() ; i++) {
+
+            ExerciseRequest exerciseRequest = exerciseRequests.get(i);
+
+
+
+            ExerciseDefinition exerciseDefinition =
+                    exerciseDefinitionRepository.findById(exerciseRequest.exerciseDefinitionId())
+                            .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Exercise definition not found"));
+
+            WorkoutExercise workoutExercise = new WorkoutExercise();
+            workoutExercise.setWorkout(workout);
+            workoutExercise.setExerciseNumber(i+1);
+            workoutExercise.setExerciseDefinition(exerciseDefinition);
+            WorkoutExercise savedWorkoutExercise = workoutExerciseRepository.save(workoutExercise);
+            List<SetRequest>  setRequests = exerciseRequest.setRequests();
+
+            List<SetResponse> setResponses = createExerciseSetsFromRequest(savedWorkoutExercise, setRequests);
+
+            exerciseResponses.add(toExerciseResponse(savedWorkoutExercise,setResponses));
+
+        }
+
+        return exerciseResponses;
+    }
+
+    private List<SetResponse> createExerciseSetsFromRequest(WorkoutExercise workoutExercise , List<SetRequest> setRequests){
+        List<SetResponse> setResponses = new ArrayList<>();
+        for(int i = 0 ; i < setRequests.size() ; i++) {
+            SetRequest setRequest = setRequests.get(i);
+
+            ExerciseSet exerciseSet = new ExerciseSet();
+            exerciseSet.setWorkoutExercise(workoutExercise);
+            exerciseSet.setSetNumber(i+1);
+            exerciseSet.setReps(setRequest.reps());
+            exerciseSet.setRir(setRequest.rir());
+            exerciseSet.setWeight(setRequest.weight());
+            ExerciseSet savedSet = exerciseSetRepository.save(exerciseSet);
+            setResponses.add(toSetResponse(savedSet));
+
+        }
+
+        return setResponses;
+    }
+
+
+
 
 
 }

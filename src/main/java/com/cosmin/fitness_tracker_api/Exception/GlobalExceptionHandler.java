@@ -3,6 +3,8 @@ package com.cosmin.fitness_tracker_api.Exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
@@ -25,6 +27,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ExerciseDefinitionNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleExerciseDefinitionNotFoundException(ExerciseDefinitionNotFoundException e) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error" , "Not found");
+        response.put("message" , e.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleUserNotFoundException(UserNotFoundException e) {
         Map<String, String> response = new HashMap<>();
         response.put("error" , "Not found");
         response.put("message" , e.getMessage());
@@ -62,5 +72,24 @@ public class GlobalExceptionHandler {
         response.put("error" , "Unauthorized");
         response.put("message" , e.getMessage());
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(WorkoutNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleWorkoutNotFoundException(WorkoutNotFoundException e) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error" , "Not found");
+        response.put("message" , e.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String,String>> validException(MethodArgumentNotValidException exc){
+        Map<String,String> response = new HashMap<>();
+
+        for (FieldError fieldError : exc.getBindingResult().getFieldErrors()) {
+            response.put(fieldError.getField() , fieldError.getDefaultMessage());
+        }
+
+        return new ResponseEntity<>(response,HttpStatus.BAD_REQUEST);
     }
 }
