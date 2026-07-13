@@ -63,7 +63,7 @@ public class WorkoutService {
     @Transactional(readOnly = true)
     public WorkoutResponse getWorkoutById(Long id) {
         String currentUsername = getCurrentUsername();
-        Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername).orElseThrow(() -> new RuntimeException("Workout not found"));
+        Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername).orElseThrow(() -> new WorkoutNotFoundException("Workout not found"));
 
         return toWorkoutResponse(workout);
     }
@@ -72,7 +72,7 @@ public class WorkoutService {
     public void deleteWorkoutById(Long id) {
         String currentUsername = getCurrentUsername();
 
-        Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername).orElseThrow(() -> new RuntimeException("Workout not found"));
+        Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername).orElseThrow(() -> new WorkoutNotFoundException("Workout not found"));
         workoutRepository.delete(workout);
 
     }
@@ -83,7 +83,7 @@ public class WorkoutService {
     public WorkoutResponse updateWorkoutMetaData(WorkoutMetaDataRequest request,Long id) {
         String currentUsername = getCurrentUsername();
 
-        Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername).orElseThrow(() -> new RuntimeException("Workout not found"));
+        Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername).orElseThrow(() -> new WorkoutNotFoundException("Workout not found"));
 
         workout.setDate(request.date());
         workout.setWorkoutName(request.workoutName());

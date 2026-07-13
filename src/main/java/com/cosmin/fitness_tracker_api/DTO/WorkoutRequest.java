@@ -10,7 +10,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 public record WorkoutRequest(
-        @NotBlank String name,
+        @NotBlank
         @Size(min = 2, max = 50)
         String workoutName,
 
