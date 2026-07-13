@@ -131,7 +131,7 @@ public class AuthServiceTest {
         user.setUsername("cosmin");
         user.setPassword("encodedPassword");
 
-        when(userRepository.existsByUsername("cosmin")).thenReturn(true);
+
         when(userRepository.findByUsername("cosmin")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("parola", "encodedPassword")).thenReturn(true);
         when(jwtUtil.generateToken("cosmin")).thenReturn("token");
@@ -140,7 +140,6 @@ public class AuthServiceTest {
 
         assertEquals("token", response.token());
 
-        verify(userRepository).existsByUsername("cosmin");
         verify(userRepository).findByUsername("cosmin");
         verify(passwordEncoder).matches("parola", "encodedPassword");
         verify(jwtUtil).generateToken("cosmin");
@@ -158,7 +157,6 @@ public class AuthServiceTest {
         user.setUsername("cosmin");
         user.setPassword("encodedPassword");
 
-        when(userRepository.existsByUsername("cosmin")).thenReturn(true);
         when(userRepository.findByUsername("cosmin")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("parola", "encodedPassword")).thenReturn(false);
 
@@ -167,7 +165,7 @@ public class AuthServiceTest {
                 () -> authService.login(loginRequest)
         );
 
-        verify(userRepository).existsByUsername("cosmin");
+       
         verify(userRepository).findByUsername("cosmin");
         verify(passwordEncoder).matches("parola", "encodedPassword");
         verify(jwtUtil, never()).generateToken(anyString());
