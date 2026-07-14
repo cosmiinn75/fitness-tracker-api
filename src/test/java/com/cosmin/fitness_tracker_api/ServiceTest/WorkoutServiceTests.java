@@ -1,11 +1,6 @@
 package com.cosmin.fitness_tracker_api.ServiceTest;
 
-import com.cosmin.fitness_tracker_api.DTO.ExerciseRequest;
-import com.cosmin.fitness_tracker_api.DTO.ExerciseResponse;
-import com.cosmin.fitness_tracker_api.DTO.SetRequest;
-import com.cosmin.fitness_tracker_api.DTO.SetResponse;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutRequest;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutResponse;
+import com.cosmin.fitness_tracker_api.DTO.*;
 import com.cosmin.fitness_tracker_api.Exception.ExerciseDefinitionNotFoundException;
 import com.cosmin.fitness_tracker_api.Model.ExerciseDefinition;
 import com.cosmin.fitness_tracker_api.Model.ExerciseSet;
@@ -24,6 +19,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -61,7 +60,7 @@ public class WorkoutServiceTests {
 
     @Test
     void createWorkout_WithValidData_ShouldCreateWorkout() {
-        mockAuthenticatedUser("cosmin");
+        mockAuthenticatedUser();
 
         User user = new User();
         user.setId(1L);
@@ -121,14 +120,14 @@ public class WorkoutServiceTests {
         assertEquals(LocalDate.of(2025, 2, 10), response.date());
         assertEquals(1, response.exerciseResponses().size());
 
-        ExerciseResponse exerciseResponse = response.exerciseResponses().get(0);
+        ExerciseResponse exerciseResponse = response.exerciseResponses().getFirst();
 
         assertEquals(1L, exerciseResponse.id());
         assertEquals(1, exerciseResponse.exerciseNumber());
         assertEquals("Bench Press", exerciseResponse.exerciseName());
         assertEquals(2, exerciseResponse.setResponses().size());
 
-        SetResponse firstSet = exerciseResponse.setResponses().get(0);
+        SetResponse firstSet = exerciseResponse.setResponses().getFirst();
 
         assertEquals(1L, firstSet.id());
         assertEquals(1, firstSet.setNumber());
@@ -146,7 +145,7 @@ public class WorkoutServiceTests {
     @Test
     void createWorkout_WithInvalidExerciseDefinition_ShouldThrowException() {
 
-        mockAuthenticatedUser("cosmin");
+        mockAuthenticatedUser();
 
         User user = new User();
         user.setId(1L);
@@ -190,7 +189,7 @@ public class WorkoutServiceTests {
     @Test
     void getAllWorkouts_ShouldReturnCurrentUserWorkouts() {
 
-        mockAuthenticatedUser("cosmin");
+        mockAuthenticatedUser();
 
         User user = new User();
         user.setId(1L);
@@ -202,30 +201,40 @@ public class WorkoutServiceTests {
         workout.setDate(LocalDate.of(2025, 2, 10));
         workout.setUser(user);
 
-        when(workoutRepository.findByUserUsernameOrderByDateDesc("cosmin"))
-                .thenReturn(List.of(workout));
+        int page = 0;
+        int size = 10;
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<Workout> workoutPage = new PageImpl<>(
+                List.of(workout),
+                pageable,
+                1
+        );
+
+        when(workoutRepository.findByUserUsernameOrderByDateDesc("cosmin", pageable))
+                .thenReturn(workoutPage);
 
         when(workoutExerciseRepository.findByWorkoutOrderByExerciseNumberAsc(workout))
                 .thenReturn(new ArrayList<>());
 
+        PagedResponse<WorkoutResponse> response = workoutService.getAllWorkouts(page, size);
 
-        List<WorkoutResponse> response = workoutService.getAllWorkouts();
 
+        assertEquals(1, response.content().size());
+        assertEquals(1L, response.content().getFirst().id());
+        assertEquals("push", response.content().getFirst().workoutName());
+        assertEquals(LocalDate.of(2025, 2, 10), response.content().getFirst().date());
+        assertEquals(0, response.content().getFirst().exerciseResponses().size());
 
-        assertEquals(1, response.size());
-        assertEquals(1L, response.get(0).id());
-        assertEquals("push", response.get(0).workoutName());
-        assertEquals(LocalDate.of(2025, 2, 10), response.get(0).date());
-        assertEquals(0, response.get(0).exerciseResponses().size());
-
-        verify(workoutRepository).findByUserUsernameOrderByDateDesc("cosmin");
+        verify(workoutRepository).findByUserUsernameOrderByDateDesc("cosmin", pageable);
         verify(workoutExerciseRepository).findByWorkoutOrderByExerciseNumberAsc(workout);
     }
 
     @Test
     void deleteWorkoutById_WhenWorkoutExists_ShouldDeleteWorkout() {
 
-        mockAuthenticatedUser("cosmin");
+        mockAuthenticatedUser();
 
         User user = new User();
         user.setId(1L);
@@ -256,10 +265,10 @@ public class WorkoutServiceTests {
         SecurityContextHolder.clearContext();
     }
 
-    private void mockAuthenticatedUser(String username) {
+    private void mockAuthenticatedUser() {
         UsernamePasswordAuthenticationToken authToken =
                 new UsernamePasswordAuthenticationToken(
-                        username,
+                        "cosmin",
                         null,
                         Collections.emptyList()
                 );
