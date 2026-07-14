@@ -165,7 +165,7 @@ public class AuthServiceTest {
                 () -> authService.login(loginRequest)
         );
 
-       
+
         verify(userRepository).findByUsername("cosmin");
         verify(passwordEncoder).matches("parola", "encodedPassword");
         verify(jwtUtil, never()).generateToken(anyString());

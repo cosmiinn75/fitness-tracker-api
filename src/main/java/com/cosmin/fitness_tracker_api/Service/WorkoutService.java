@@ -6,6 +6,9 @@ import com.cosmin.fitness_tracker_api.Exception.*;
 import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.*;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -50,14 +53,14 @@ public class WorkoutService {
 
 
     @Transactional(readOnly = true)
-    public List<WorkoutResponse> getAllWorkouts() {
+    public PagedResponse<WorkoutResponse> getAllWorkouts(Integer page , Integer size) {
         String currentUsername = getCurrentUsername();
 
-        return workoutRepository.findByUserUsernameOrderByDateDesc(currentUsername)
-                .stream()
-                .map(this::toWorkoutResponse)
-                .toList();
+        Pageable pageable =  PageRequest.of(page,size);
 
+       Page<WorkoutResponse> responses = workoutRepository.findByUserUsernameOrderByDateDesc(currentUsername,pageable)
+                .map(this::toWorkoutResponse);
+        return PagedResponse.from(responses);
     }
 
     @Transactional(readOnly = true)
