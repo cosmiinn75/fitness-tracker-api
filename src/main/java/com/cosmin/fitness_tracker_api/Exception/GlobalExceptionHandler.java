@@ -1,6 +1,7 @@
 package com.cosmin.fitness_tracker_api.Exception;
 
 
+import com.cosmin.fitness_tracker_api.DTO.PersonalRecordResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -76,6 +77,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(WorkoutNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleWorkoutNotFoundException(WorkoutNotFoundException e) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error" , "Not found");
+        response.put("message" , e.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(PersonalRecordNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handlePersonalRecordNotFoundException(PersonalRecordNotFoundException e) {
         Map<String, String> response = new HashMap<>();
         response.put("error" , "Not found");
         response.put("message" , e.getMessage());

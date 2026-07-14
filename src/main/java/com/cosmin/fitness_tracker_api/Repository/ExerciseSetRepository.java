@@ -12,4 +12,8 @@ public interface ExerciseSetRepository extends JpaRepository<ExerciseSet, Long> 
     List<ExerciseSet> findByWorkoutExerciseOrderBySetNumberAsc(WorkoutExercise workoutExercise);
 
     void deleteByWorkoutExercise(WorkoutExercise workoutExercise);
+
+    List<ExerciseSet> findByWorkoutExercise_ExerciseDefinition_Id(Long workoutExerciseExerciseDefinitionId);
+
+    List<ExerciseSet> findByWorkoutExerciseExerciseDefinitionIdAndWorkoutExerciseWorkoutUserUsername(Long id, String username);
 }
