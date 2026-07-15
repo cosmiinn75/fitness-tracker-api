@@ -84,4 +84,51 @@ public class WorkoutController {
     ) {
         return workoutService.changeWorkoutExercise(request,workoutId,exerciseNumber);
     }
+
+    @PostMapping("/{workoutId}/exercises/{exerciseNumber}/sets")
+    public WorkoutResponse addSet(
+            @Valid @RequestBody SetRequest request,
+            @PathVariable Long workoutId,
+            @PathVariable Integer exerciseNumber
+    ) {
+        return workoutService.addSet(
+                request,
+                workoutId,
+                exerciseNumber
+        );
+    }
+
+
+    @DeleteMapping("/{workoutId}/exercises/{exerciseNumber}/set/{setNumber}")
+    public WorkoutResponse deleteSet(
+            @PathVariable @Positive Long workoutId,
+            @PathVariable @Positive Integer exerciseNumber,
+            @PathVariable @Positive Integer setNumber
+    )
+    {
+        return workoutService.deleteExerciseSet(workoutId,exerciseNumber,setNumber);
+    }
+
+    @PostMapping("/{workoutId}/exercises")
+    public WorkoutResponse addWorkoutExercise(
+            @PathVariable Long workoutId,
+            @Valid @RequestBody ExerciseRequest request
+    ) {
+        return workoutService.addWorkoutExercise(
+                workoutId,
+                request
+        );
+    }
+
+    @DeleteMapping("/{workoutId}/exercises/{exerciseNumber}")
+    public WorkoutResponse deleteWorkoutExercise(
+            @PathVariable Long workoutId,
+            @PathVariable Integer exerciseNumber
+    ) {
+        return workoutService.deleteWorkoutExercise(
+                workoutId,
+                exerciseNumber
+        );
+    }
+
 }
