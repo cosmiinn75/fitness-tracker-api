@@ -182,6 +182,64 @@ public class WorkoutService {
         }
 
 
+        @Transactional
+        public WorkoutResponse deleteExerciseSet(Long workoutId, Integer exerciseNumber, Integer setNumber) {
+            String currentUsername = getCurrentUsername();
+
+            Workout workout = workoutRepository.findByIdAndUserUsername(workoutId,currentUsername)
+                    .orElseThrow(() -> new WorkoutNotFoundException("Workout with id: " + workoutId + " not found"));
+
+            WorkoutExercise workoutExercise = getWorkoutExerciseByExerciseNumber(workout, exerciseNumber);
+
+           ExerciseSet exerciseSet = getExerciseSetBySetNumber(workoutExercise,setNumber);
+
+           List<ExerciseSet> exerciseSets = workoutExercise.getExerciseSets();
+
+            exerciseSets.remove(exerciseSet);
+
+           for(ExerciseSet set: exerciseSets) {
+
+               if(set.getSetNumber() > setNumber) {
+                   set.setSetNumber(set.getSetNumber() - 1);
+               }
+
+           }
+
+            exerciseSetRepository.delete(exerciseSet);
+
+            return toWorkoutResponse(workout);
+        }
+
+
+
+        @Transactional
+        public WorkoutResponse addSet(SetRequest request, Long workoutId, Integer exerciseNumber) {
+
+            String currentUsername = getCurrentUsername();
+
+            Workout workout = workoutRepository.findByIdAndUserUsername(workoutId,currentUsername)
+                    .orElseThrow(() -> new WorkoutNotFoundException("Workout with id: " + workoutId + " not found"));
+
+            WorkoutExercise workoutExercise = getWorkoutExerciseByExerciseNumber(workout, exerciseNumber);
+
+            List<ExerciseSet> exerciseSets = workoutExercise.getExerciseSets();
+
+            ExerciseSet newSet = new ExerciseSet();
+            newSet.setWeight(request.weight());
+            newSet.setReps(request.reps());
+            newSet.setRir(request.rir());
+            newSet.setWorkoutExercise(workoutExercise);
+            newSet.setSetNumber(exerciseSets.size()+1);
+
+            exerciseSets.add(newSet);
+            exerciseSetRepository.save(newSet);
+
+            return toWorkoutResponse(workout);
+        }
+
+
+
+
         private WorkoutExercise getWorkoutExerciseByExerciseNumber(Workout workout, Integer exerciseNumber) {
 
             return workout.getWorkoutExercises()
