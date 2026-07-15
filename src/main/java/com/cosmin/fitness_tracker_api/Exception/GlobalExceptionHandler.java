@@ -91,6 +91,22 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(WorkoutExerciseNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleWorkoutExerciseNotFoundException(WorkoutExerciseNotFoundException e) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error" , "Not found");
+        response.put("message" , e.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(ExerciseSetNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleExerciseSetNotFoundException(ExerciseSetNotFoundException e) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error" , "Not found");
+        response.put("message" , e.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String,String>> validException(MethodArgumentNotValidException exc){
         Map<String,String> response = new HashMap<>();
