@@ -1,6 +1,7 @@
 package com.cosmin.fitness_tracker_api.ServiceTest;
 
 import com.cosmin.fitness_tracker_api.DTO.*;
+import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import com.cosmin.fitness_tracker_api.Exception.ExerciseDefinitionNotFoundException;
 import com.cosmin.fitness_tracker_api.Model.ExerciseDefinition;
 import com.cosmin.fitness_tracker_api.Model.ExerciseSet;
@@ -32,8 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -257,7 +257,154 @@ public class WorkoutServiceTests {
         verify(workoutRepository).delete(workout);
     }
 
-    
+    @Test
+    void changeOneSet_ShouldUpdateOnlyProvidedFields(){
+
+        mockAuthenticatedUser();
+
+        UpdateExerciseSetRequest  request = new UpdateExerciseSetRequest(
+                null,
+                3,
+                null
+        );
+
+        Long workoutId = 1L;
+        Integer exerciseNumber = 1;
+        Integer setNumber = 1;
+
+        ExerciseSet exerciseSet = new ExerciseSet();
+        exerciseSet.setReps(10);
+        exerciseSet.setRir(9);
+        exerciseSet.setSetNumber(setNumber);
+        exerciseSet.setWeight(100.00);
+
+        ExerciseDefinition exerciseDefinition = new ExerciseDefinition();
+        exerciseDefinition.setName("Bench");
+        exerciseDefinition.setMuscleGroup(MuscleGroup.CHEST);
+
+        WorkoutExercise workoutExercise = new WorkoutExercise();
+        workoutExercise.setExerciseNumber(exerciseNumber);
+        workoutExercise.setExerciseSets(List.of(exerciseSet));
+        workoutExercise.setExerciseDefinition(exerciseDefinition);
+
+        Workout workout = new Workout();
+        workout.setId(workoutId);
+        workout.setWorkoutName("push");
+        workout.setWorkoutExercises(List.of(workoutExercise));
+
+        when(workoutRepository.findByIdAndUserUsername(1L, "cosmin"))
+                .thenReturn(Optional.of(workout));
+
+        when(workoutExerciseRepository
+                .findByWorkoutOrderByExerciseNumberAsc(workout))
+                .thenReturn(List.of(workoutExercise));
+
+        when(exerciseSetRepository
+                .findByWorkoutExerciseOrderBySetNumberAsc(workoutExercise))
+                .thenReturn(List.of(exerciseSet));
+
+
+        WorkoutResponse response = workoutService.changeOneSet(request,workoutId,exerciseNumber,setNumber);
+
+        assertEquals(3, exerciseSet.getReps());
+        assertEquals(100.0, exerciseSet.getWeight(), 0.001);
+        assertEquals(9, exerciseSet.getRir());
+
+        assertNotNull(response);
+
+        verify(workoutRepository)
+                .findByIdAndUserUsername(workoutId, "cosmin");
+    }
+    @Test
+    void changeWorkoutExercise_ShouldChangeExerciseDefinition() {
+        mockAuthenticatedUser();
+
+        Long workoutId = 1L;
+        Integer exerciseNumber = 1;
+        Long newExerciseDefinitionId = 2L;
+
+        ChangeWorkoutExerciseRequest request =
+                new ChangeWorkoutExerciseRequest(newExerciseDefinitionId);
+
+        ExerciseDefinition oldExerciseDefinition = new ExerciseDefinition();
+        oldExerciseDefinition.setId(1L);
+        oldExerciseDefinition.setName("Bench Press");
+        oldExerciseDefinition.setMuscleGroup(MuscleGroup.CHEST);
+
+        ExerciseDefinition newExerciseDefinition = new ExerciseDefinition();
+        newExerciseDefinition.setId(newExerciseDefinitionId);
+        newExerciseDefinition.setName("Incline Bench Press");
+        newExerciseDefinition.setMuscleGroup(MuscleGroup.CHEST);
+
+        Workout workout = new Workout();
+        workout.setId(workoutId);
+        workout.setWorkoutName("Push");
+        workout.setDate(LocalDate.of(2026, 7, 15));
+
+        WorkoutExercise workoutExercise = new WorkoutExercise();
+        workoutExercise.setId(1L);
+        workoutExercise.setExerciseNumber(exerciseNumber);
+        workoutExercise.setExerciseDefinition(oldExerciseDefinition);
+        workoutExercise.setWorkout(workout);
+
+        ExerciseSet exerciseSet = new ExerciseSet();
+        exerciseSet.setId(1L);
+        exerciseSet.setSetNumber(1);
+        exerciseSet.setWeight(100.0);
+        exerciseSet.setReps(5);
+        exerciseSet.setRir(1);
+        exerciseSet.setWorkoutExercise(workoutExercise);
+
+        workoutExercise.setExerciseSets(List.of(exerciseSet));
+        workout.setWorkoutExercises(List.of(workoutExercise));
+
+        when(workoutRepository.findByIdAndUserUsername(workoutId, "cosmin"))
+                .thenReturn(Optional.of(workout));
+
+        when(exerciseDefinitionRepository.findById(newExerciseDefinitionId))
+                .thenReturn(Optional.of(newExerciseDefinition));
+
+        when(workoutExerciseRepository
+                .findByWorkoutOrderByExerciseNumberAsc(workout))
+                .thenReturn(List.of(workoutExercise));
+
+        when(exerciseSetRepository
+                .findByWorkoutExerciseOrderBySetNumberAsc(workoutExercise))
+                .thenReturn(List.of(exerciseSet));
+
+        WorkoutResponse response = workoutService.changeWorkoutExercise(
+                request,
+                workoutId,
+                exerciseNumber
+        );
+
+        assertNotNull(response);
+
+        assertEquals(
+                newExerciseDefinitionId,
+                workoutExercise.getExerciseDefinition().getId()
+        );
+
+        assertEquals(
+                "Incline Bench Press",
+                workoutExercise.getExerciseDefinition().getName()
+        );
+
+
+        assertEquals(1, workoutExercise.getExerciseSets().size());
+        assertEquals(100.0, exerciseSet.getWeight(), 0.001);
+        assertEquals(5, exerciseSet.getReps());
+        assertEquals(1, exerciseSet.getRir());
+
+
+        assertEquals(exerciseNumber, workoutExercise.getExerciseNumber());
+
+        verify(workoutRepository)
+                .findByIdAndUserUsername(workoutId, "cosmin");
+
+        verify(exerciseDefinitionRepository)
+                .findById(newExerciseDefinitionId);
+    }
 
 
     @AfterEach

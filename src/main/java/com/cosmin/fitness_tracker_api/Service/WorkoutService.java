@@ -122,6 +122,93 @@ public class WorkoutService {
         return toWorkoutResponse(workout,exerciseResponses);
     }
 
+        @Transactional
+        public WorkoutResponse changeOneSet(UpdateExerciseSetRequest request, Long workoutId, Integer exerciseNumber , Integer setNumber) {
+            String currentUsername = getCurrentUsername();
+
+            Workout workout = workoutRepository.findByIdAndUserUsername(workoutId,currentUsername)
+                    .orElseThrow( () -> new WorkoutNotFoundException("Workout with id: " + workoutId + " not found"));
+
+            WorkoutExercise workoutExercise = getWorkoutExerciseByExerciseNumber(workout,exerciseNumber);
+
+
+            ExerciseSet exerciseSet = getExerciseSetBySetNumber(workoutExercise,setNumber);
+
+            if (request.weight() != null) {
+                exerciseSet.setWeight(request.weight());
+            }
+
+            if (request.reps() != null) {
+                exerciseSet.setReps(request.reps());
+            }
+
+            if (request.rir() != null) {
+                exerciseSet.setRir(request.rir());
+            }
+            return toWorkoutResponse(workout);
+        }
+
+
+        @Transactional
+        public WorkoutResponse changeWorkoutExercise(
+                ChangeWorkoutExerciseRequest request,
+                Long workoutId,
+                Integer exerciseNumber
+        ) {
+            String currentUsername = getCurrentUsername();
+
+            Workout workout = workoutRepository
+                    .findByIdAndUserUsername(workoutId, currentUsername)
+                    .orElseThrow(() -> new WorkoutNotFoundException(
+                            "Workout with id: " + workoutId + " not found"
+                    ));
+
+            WorkoutExercise workoutExercise = getWorkoutExerciseByExerciseNumber(workout, exerciseNumber);
+
+            ExerciseDefinition newExerciseDefinition =
+                    exerciseDefinitionRepository
+                            .findById(request.exerciseDefinitionId())
+                            .orElseThrow(() ->
+                                    new ExerciseDefinitionNotFoundException(
+                                            "Exercise definition with id: "
+                                                    + request.exerciseDefinitionId()
+                                                    + " not found"
+                                    )
+                            );
+
+            workoutExercise.setExerciseDefinition(newExerciseDefinition);
+
+            return toWorkoutResponse(workout);
+        }
+
+
+        private WorkoutExercise getWorkoutExerciseByExerciseNumber(Workout workout, Integer exerciseNumber) {
+
+            return workout.getWorkoutExercises()
+                    .stream()
+                    .filter(exercise ->
+                            exercise.getExerciseNumber().equals(exerciseNumber)
+                    )
+                    .findFirst()
+                    .orElseThrow(() -> new WorkoutExerciseNotFoundException(
+                            "Exercise with number: " + exerciseNumber + " not found"
+                    ));
+
+        }
+
+
+    private ExerciseSet getExerciseSetBySetNumber(
+            WorkoutExercise workoutExercise,
+            Integer setNumber
+    ) {
+        return workoutExercise.getExerciseSets()
+                .stream()
+                .filter(set -> set.getSetNumber().equals(setNumber))
+                .findFirst()
+                .orElseThrow(() -> new ExerciseSetNotFoundException(
+                        "Set with number: " + setNumber + " not found"
+                ));
+    }
 
     private String getCurrentUsername() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();

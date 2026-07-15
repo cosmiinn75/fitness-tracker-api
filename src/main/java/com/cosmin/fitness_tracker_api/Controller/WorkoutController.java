@@ -1,20 +1,16 @@
 package com.cosmin.fitness_tracker_api.Controller;
 
 
-import com.cosmin.fitness_tracker_api.DTO.PagedResponse;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutMetaDataRequest;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutRequest;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutResponse;
+import com.cosmin.fitness_tracker_api.DTO.*;
 import com.cosmin.fitness_tracker_api.Service.WorkoutService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+
 
 @Validated
 @RestController
@@ -63,4 +59,29 @@ public class WorkoutController {
         return workoutService.createWorkout(workoutRequest);
     }
 
+
+    @PatchMapping("/{workoutId}/exercises/{exerciseNumber}/sets/{setNumber}")
+    public WorkoutResponse changeOneSet(
+            @PathVariable Long workoutId,
+            @PathVariable Integer exerciseNumber,
+            @PathVariable Integer setNumber,
+            @Valid @RequestBody UpdateExerciseSetRequest request
+    ) {
+        return workoutService.changeOneSet(
+                request,
+                workoutId,
+                exerciseNumber,
+                setNumber
+        );
+
+
+    }
+    @PatchMapping("/{workoutId}/exercises/{exerciseNumber}")
+    public WorkoutResponse changeWorkoutExercise(
+            @PathVariable @Positive Long workoutId,
+            @PathVariable @Positive Integer exerciseNumber,
+            @Valid  @RequestBody   ChangeWorkoutExerciseRequest request
+    ) {
+        return workoutService.changeWorkoutExercise(request,workoutId,exerciseNumber);
+    }
 }
