@@ -3,6 +3,7 @@ package com.cosmin.fitness_tracker_api.ControllerTest;
 import com.cosmin.fitness_tracker_api.Controller.ExerciseDefinitionController;
 import com.cosmin.fitness_tracker_api.Security.JWTFilter;
 import com.cosmin.fitness_tracker_api.Service.ExerciseDefinitionService;
+import com.cosmin.fitness_tracker_api.Service.ProgressService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -17,7 +18,7 @@ public class ProgressControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private ExerciseDefinitionService exerciseDefinitionService;
+    private ProgressService progressService;
 
     @MockitoBean
     private JWTFilter  jwtFilter;
