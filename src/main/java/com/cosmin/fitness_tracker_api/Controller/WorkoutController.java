@@ -334,6 +334,7 @@ public class WorkoutController {
             )
     })
     @DeleteMapping("/{workoutId}/exercises/{exerciseNumber}/sets/{setNumber}")
+    @ResponseStatus(HttpStatus.OK)
     public WorkoutResponse deleteSet(
             @PathVariable @Positive Long workoutId,
             @PathVariable @Positive Integer exerciseNumber,
