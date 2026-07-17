@@ -26,7 +26,7 @@ public class JWTUtil {
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256).
                 subject(username)
                 .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + 1000*60*60*24))
+                .expiration(new Date(System.currentTimeMillis() + 1000*60*15))
                 .compact();
     }
 
@@ -36,13 +36,13 @@ public class JWTUtil {
     }
 
 
-    private boolean isTokenExpidred(String token){
+    private boolean isTokenExpired(String token){
         return extractAllClaims(token).getExpiration().before(new Date());
     }
 
 
     public boolean isValid(String token,String email){
-        return (extractEmail(token).equals(email) && !isTokenExpidred(token));
+        return (extractEmail(token).equals(email) && !isTokenExpired(token));
     }
 
     private Claims extractAllClaims(String token){
