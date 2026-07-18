@@ -2,9 +2,9 @@
 
 [![Fitness Tracker CI](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml/badge.svg)](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml)
 
-A RESTful backend application built with **Java and Spring Boot** for managing workouts, exercises, sets, training volume and personal records.
+A secure RESTful backend application built with **Java and Spring Boot** for managing workouts, exercises, sets, training volume, and personal records.
 
-The API provides JWT-based authentication, refresh token support, user-specific resource access, nested workout management, pagination, validation, global exception handling, Swagger/OpenAPI documentation, automated tests, Docker support and continuous integration with GitHub Actions.
+The project includes JWT authentication, refresh-token rotation, logout and token invalidation, user-specific resource access, nested workout management, pagination, validation, global exception handling, Swagger/OpenAPI documentation, Docker support, automated testing, and continuous integration with GitHub Actions.
 
 ---
 
@@ -15,7 +15,7 @@ The API provides JWT-based authentication, refresh token support, user-specific 
 - [Architecture](#architecture)
 - [Domain Model](#domain-model)
 - [API Endpoints](#api-endpoints)
-- [Authentication](#authentication)
+- [Authentication Flow](#authentication-flow)
 - [Request Examples](#request-examples)
 - [Progress Tracking](#progress-tracking)
 - [Validation and Error Handling](#validation-and-error-handling)
@@ -30,6 +30,7 @@ The API provides JWT-based authentication, refresh token support, user-specific 
 - [Future Improvements](#future-improvements)
 - [What I Learned](#what-i-learned)
 - [Status](#status)
+- [Author](#author)
 
 ---
 
@@ -39,14 +40,16 @@ The API provides JWT-based authentication, refresh token support, user-specific 
 
 - User registration
 - User login
-- JWT access token authentication
-- Refresh token support
-- Logout functionality
-- Password hashing before persistence
+- JWT access-token authentication
+- Refresh-token persistence
+- Refresh-token rotation
+- Logout and refresh-token invalidation
+- BCrypt password hashing
 - Stateless Spring Security configuration
 - Protected API endpoints
-- Authentication through the standard Bearer token header
 - User-specific resource ownership checks
+- Bearer-token authentication
+- Secure configuration through environment variables
 
 Protected requests use:
 
@@ -54,12 +57,14 @@ Protected requests use:
 Authorization: Bearer <access-token>
 ```
 
+Refresh-token rotation ensures that, when a refresh token is used successfully, the old token is invalidated and replaced with a newly generated token.
+
 ---
 
 ### Exercise Definitions
 
-- Create exercise definitions
-- Retrieve all available exercise definitions
+- Create reusable exercise definitions
+- Retrieve all exercise definitions
 - Retrieve an exercise definition by ID
 - Update an existing exercise definition
 - Prevent duplicate exercise names
@@ -79,35 +84,35 @@ Example exercise definitions:
 
 - Create workouts for the authenticated user
 - Add multiple exercises to a workout
-- Add multiple sets to every exercise
-- Retrieve a paginated workout history
+- Add multiple sets to each exercise
+- Retrieve paginated workout history
 - Retrieve a workout by ID
 - Update workout metadata
 - Replace an entire workout
 - Delete workouts
-- Restrict workout access to the authenticated owner
+- Restrict access to the authenticated owner
 
-Each workout can contain multiple exercises, and each exercise can contain multiple sets.
+Each workout can contain multiple exercises, while each workout exercise can contain multiple sets.
 
 ---
 
 ### Exercise Management Inside a Workout
 
 - Add an exercise to an existing workout
-- Change the exercise definition while preserving its sets
+- Change the exercise definition while preserving existing sets
 - Delete an exercise from a workout
-- Automatically renumber the remaining exercises after deletion
+- Automatically renumber remaining exercises after deletion
 
-Exercises are ordered using an `exerciseNumber` value.
+Exercises are ordered using an `exerciseNumber` field.
 
 ---
 
 ### Set Management
 
-- Add a set to an existing exercise
+- Add a set to an existing workout exercise
 - Partially update a set
 - Delete a set
-- Automatically renumber the remaining sets after deletion
+- Automatically renumber remaining sets after deletion
 
 For partial updates, only the fields included in the request are modified.
 
@@ -125,10 +130,11 @@ The existing weight and RIR values remain unchanged.
 
 ### Progress Tracking
 
-- Calculate the total volume of a workout
+- Calculate total workout volume
 - Calculate training volume for the last seven days
 - Calculate training volume for the last month
-- Retrieve the personal record for an exercise
+- Retrieve the personal record for a specific exercise
+- Restrict progress data to the authenticated user
 
 Workout volume is calculated using:
 
@@ -139,7 +145,22 @@ volume = weight × repetitions
 Personal records are selected using the following priority:
 
 1. Highest weight
-2. Highest number of repetitions when multiple sets use the same maximum weight
+2. Highest number of repetitions when the weight is equal
+3. Highest RIR when both weight and repetitions are equal
+
+For example:
+
+```text
+100 kg × 8 repetitions @ RIR 3
+```
+
+is considered better than:
+
+```text
+100 kg × 8 repetitions @ RIR 1
+```
+
+because the same performance was achieved with more repetitions still available in reserve.
 
 ---
 
@@ -155,12 +176,13 @@ GET /api/workouts?page=0&size=10
 
 The response includes:
 
+- Workout content
 - Current page
 - Page size
 - Total number of elements
 - Total number of pages
-- Whether the current page is the last page
-- Workout content
+- First-page indicator
+- Last-page indicator
 
 ---
 
@@ -170,32 +192,68 @@ The project includes:
 
 - Swagger UI
 - OpenAPI specification
-- Documented controllers and DTOs
-- JWT authentication support in Swagger
-- Request and response documentation
+- Documented controllers
+- Documented request and response DTOs
+- JWT authentication support inside Swagger
 - Validation information
+- Example request and response schemas
 
 ---
 
-### Testing
+### Automated Testing
 
-The project contains automated tests for both the service and controller layers.
+The project contains automated tests at multiple levels.
+
+#### Service Unit Tests
 
 Service tests use:
 
-- JUnit 5
+- JUnit
 - Mockito
-- Mocked repositories and dependencies
+- Mocked repositories
+- Mocked security and supporting dependencies
+
+They verify business logic independently from the web and database layers.
+
+#### Controller Tests
 
 Controller tests use:
 
-- Spring MVC test support
 - MockMvc
+- Spring MVC test support
 - Mocked services
 - JSON request and response assertions
 - HTTP status assertions
+- Validation and exception-response testing
 
-The test suite covers successful operations, invalid input, missing resources and authentication-related scenarios.
+They verify request mapping, serialization, validation, and HTTP responses.
+
+#### Integration Tests
+
+Integration tests use:
+
+- `@SpringBootTest`
+- `@AutoConfigureMockMvc`
+- A dedicated MySQL test database
+- Real controllers
+- Real services
+- Real repositories
+- Real JPA entity relationships
+
+Integration tests cover important end-to-end flows such as:
+
+- User registration
+- User login
+- Token refresh
+- Logout and token invalidation
+- Exercise-definition retrieval
+- Workout creation
+- Workout persistence
+- Workout retrieval
+- Workout updates
+- Workout deletion
+- Unauthorized access
+- Resource ownership protection
 
 ---
 
@@ -206,9 +264,10 @@ The test suite covers successful operations, invalid input, missing resources an
 - Docker Compose configuration
 - Environment-based configuration
 - GitHub Actions workflow
-- Automatic build and test execution
-- Dedicated MySQL database during CI
-- Maven `clean verify` execution on every push and pull request to `main`
+- Automated compilation and testing
+- Dedicated MySQL service container during CI
+- Maven `clean verify` execution
+- Workflow execution on pushes and pull requests targeting `main`
 
 ---
 
@@ -227,8 +286,9 @@ The test suite covers successful operations, invalid input, missing resources an
 ### Authentication
 
 - JSON Web Tokens
-- Access tokens
+- JWT access tokens
 - Refresh tokens
+- Refresh-token rotation
 - BCrypt password encoding
 
 ### Database
@@ -244,10 +304,11 @@ The test suite covers successful operations, invalid input, missing resources an
 
 ### Testing
 
-- JUnit 5
+- JUnit
 - Mockito
 - MockMvc
 - Spring Boot Test
+- Integration testing with MySQL
 - Maven Surefire
 
 ### DevOps
@@ -281,6 +342,7 @@ Responsible for:
 - Validating request data
 - Calling the appropriate service
 - Returning HTTP responses
+- Mapping exceptions to consistent API responses
 
 ### Service Layer
 
@@ -288,10 +350,12 @@ Responsible for:
 
 - Business logic
 - Authentication logic
-- Ownership validation
-- Entity mapping
+- Refresh-token management
+- Resource ownership validation
+- Entity creation and updates
+- DTO mapping
 - Workout calculations
-- Resource creation and updates
+- Personal-record selection
 
 ### Repository Layer
 
@@ -301,26 +365,26 @@ Responsible for:
 - Entity persistence
 - User-specific queries
 - Workout and exercise lookup
+- Refresh-token persistence
+- Progress-related queries
 
 ### DTO Layer
 
-Request and response DTOs are used to prevent exposing persistence entities directly through the API.
+Request and response DTOs are used to avoid exposing persistence entities directly through the API.
 
 ---
 
 ## Domain Model
 
-The main entities are:
-
 ### User
 
 Represents an application account.
 
-A user can own multiple workouts.
+A user can own multiple workouts and can have an associated refresh token.
 
 ### ExerciseDefinition
 
-Represents a reusable exercise, such as Bench Press or Squat.
+Represents a reusable exercise, such as Bench Press, Squat, or Deadlift.
 
 ### Workout
 
@@ -331,6 +395,7 @@ A workout contains:
 - A name
 - A date
 - A list of workout exercises
+- An owner
 
 ### WorkoutExercise
 
@@ -341,6 +406,7 @@ It contains:
 - An exercise definition
 - An exercise number
 - A list of sets
+- A reference to its workout
 
 ### ExerciseSet
 
@@ -352,10 +418,13 @@ It contains:
 - Weight
 - Repetitions
 - RIR
+- A reference to its workout exercise
 
-### Refresh Token
+### RefreshToken
 
-Represents a refresh token associated with the authentication flow.
+Represents a refresh token used to obtain a new access token.
+
+Refresh tokens are persisted and invalidated when they are rotated or used during logout.
 
 ---
 
@@ -372,9 +441,9 @@ Authorization: Bearer <access-token>
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/api/auth/register` | Register a new user |
-| POST | `/api/auth/login` | Authenticate a user |
-| POST | `/api/auth/refresh` | Refresh authentication tokens |
-| POST | `/api/auth/logout` | Logout and invalidate the current session or token |
+| POST | `/api/auth/login` | Authenticate a user and return tokens |
+| POST | `/api/auth/refresh` | Rotate the refresh token and return new tokens |
+| POST | `/api/auth/logout` | Invalidate the supplied refresh token |
 
 ---
 
@@ -433,18 +502,25 @@ Authorization: Bearer <access-token>
 
 ---
 
-## Authentication
+## Authentication Flow
 
-### Authentication Flow
+### Registration
 
-1. The user registers or logs in.
-2. The API generates authentication tokens.
-3. The client stores the returned tokens.
-4. The access token is included in protected requests.
-5. The refresh token can be used to obtain new authentication tokens.
-6. Logout invalidates the current authentication session or token.
+1. The client sends a username, email, and password.
+2. The password is encoded using BCrypt.
+3. The user is saved in MySQL.
+4. The API returns an access token and refresh token.
 
-Protected requests use:
+### Login
+
+1. The client sends valid credentials.
+2. Spring Security authenticates the user.
+3. The API returns an access token and refresh token.
+4. The refresh token is persisted in the database.
+
+### Accessing Protected Endpoints
+
+The access token is included in the request:
 
 ```http
 Authorization: Bearer <access-token>
@@ -452,13 +528,31 @@ Authorization: Bearer <access-token>
 
 The authenticated username is extracted from the Spring Security context.
 
-Workout ownership is verified using both:
+### Refresh-Token Rotation
+
+1. The client sends the current refresh token.
+2. The API verifies that the token exists and is valid.
+3. The old refresh token is invalidated.
+4. A new refresh token is generated and persisted.
+5. The API returns a new access token and refresh token.
+
+This prevents the same refresh token from being reused indefinitely.
+
+### Logout
+
+1. The client sends its refresh token.
+2. The API invalidates the token.
+3. The invalidated token can no longer be used to obtain new access tokens.
+
+### Resource Ownership
+
+Workout ownership is verified using:
 
 ```text
 workout ID + authenticated username
 ```
 
-This prevents users from reading, updating or deleting workouts belonging to other accounts.
+This prevents users from reading, modifying, or deleting workouts belonging to another account.
 
 ---
 
@@ -479,6 +573,15 @@ Content-Type: application/json
 }
 ```
 
+Example response:
+
+```json
+{
+  "accessToken": "<access-token>",
+  "refreshToken": "<refresh-token>"
+}
+```
+
 ---
 
 ### Login
@@ -492,6 +595,56 @@ Content-Type: application/json
 {
   "username": "cosmin",
   "password": "password123"
+}
+```
+
+Example response:
+
+```json
+{
+  "accessToken": "<access-token>",
+  "refreshToken": "<refresh-token>"
+}
+```
+
+---
+
+### Refresh Tokens
+
+```http
+POST /api/auth/refresh
+Content-Type: application/json
+```
+
+```json
+{
+  "refreshToken": "<current-refresh-token>"
+}
+```
+
+Example response:
+
+```json
+{
+  "accessToken": "<new-access-token>",
+  "refreshToken": "<new-refresh-token>"
+}
+```
+
+The previous refresh token is invalidated after a successful refresh.
+
+---
+
+### Logout
+
+```http
+POST /api/auth/logout
+Content-Type: application/json
+```
+
+```json
+{
+  "refreshToken": "<refresh-token>"
 }
 ```
 
@@ -596,7 +749,36 @@ Content-Type: application/json
 }
 ```
 
-Only the provided metadata fields are updated.
+Only the supplied metadata fields are updated.
+
+---
+
+### Replace an Entire Workout
+
+```http
+PUT /api/workouts/1
+Authorization: Bearer <access-token>
+Content-Type: application/json
+```
+
+```json
+{
+  "workoutName": "Pull Day",
+  "date": "2026-07-17",
+  "exerciseRequests": [
+    {
+      "exerciseDefinitionId": 2,
+      "setRequests": [
+        {
+          "weight": 80.0,
+          "reps": 8,
+          "rir": 2
+        }
+      ]
+    }
+  ]
+}
+```
 
 ---
 
@@ -702,11 +884,12 @@ Example response:
   "size": 10,
   "totalElements": 1,
   "totalPages": 1,
+  "first": true,
   "last": true
 }
 ```
 
-When the user has no workouts, the API returns `200 OK` with an empty content list.
+When the authenticated user has no workouts, the API returns `200 OK` with an empty content list.
 
 ---
 
@@ -782,9 +965,12 @@ Example response:
   "exerciseName": "Bench Press",
   "weight": 100.0,
   "reps": 6,
+  "rir": 2,
   "workoutDate": "2026-07-15"
 }
 ```
+
+The personal record belongs only to the authenticated user.
 
 ---
 
@@ -800,8 +986,8 @@ Examples of validation rules:
 - IDs must be positive
 - Workout names must not be blank
 - Workout dates must not be null
-- Exercise definition IDs must not be null
-- Exercise and set lists must contain valid elements
+- Exercise-definition IDs must not be null
+- Exercise and set collections must contain valid elements
 - Weight must be positive
 - Repetitions must be positive
 - RIR must be within the accepted range
@@ -814,7 +1000,8 @@ Invalid requests return an appropriate HTTP status code.
 |---|---|
 | Invalid request body | `400 Bad Request` |
 | Invalid path parameter | `400 Bad Request` |
-| Invalid refresh or logout token | `400 Bad Request` |
+| Invalid refresh token | `400 Bad Request` |
+| Invalid logout token | `400 Bad Request` |
 | Invalid login credentials | `401 Unauthorized` |
 | Missing or invalid JWT | `401 Unauthorized` |
 | User not found | `404 Not Found` |
@@ -826,7 +1013,7 @@ Invalid requests return an appropriate HTTP status code.
 | Duplicate username or email | `409 Conflict` |
 | Duplicate exercise name | `409 Conflict` |
 
-A global exception handler is used to provide consistent API error responses.
+A global exception handler provides consistent API error responses.
 
 ---
 
@@ -849,7 +1036,7 @@ The application imports an optional local `.env` file:
 spring.config.import=optional:file:./.env[.properties]
 ```
 
-Datasource configuration:
+Datasource and JWT configuration:
 
 ```properties
 spring.datasource.url=${DB_URL}
@@ -919,7 +1106,7 @@ fitness-tracker-api/
 docker compose up --build
 ```
 
-To run the containers in the background:
+Run the containers in the background:
 
 ```bash
 docker compose up --build -d
@@ -931,7 +1118,7 @@ docker compose up --build -d
 docker compose down
 ```
 
-To also remove Docker volumes:
+Remove containers and database volumes:
 
 ```bash
 docker compose down -v
@@ -966,9 +1153,7 @@ git clone https://github.com/cosmiinn75/fitness-tracker-api.git
 cd fitness-tracker-api
 ```
 
-### 2. Configure the database
-
-Create a MySQL database:
+### 2. Create the database
 
 ```sql
 CREATE DATABASE fitness_tracker_db;
@@ -976,7 +1161,7 @@ CREATE DATABASE fitness_tracker_db;
 
 ### 3. Configure environment variables
 
-Example:
+Example `.env` file:
 
 ```env
 DB_URL=jdbc:mysql://127.0.0.1:3306/fitness_tracker_db
@@ -989,7 +1174,7 @@ These values can be configured through:
 
 - A local `.env` file
 - IntelliJ run configuration
-- Operating system environment variables
+- Operating-system environment variables
 - Terminal environment variables
 
 ### 4. Run the application
@@ -1016,7 +1201,40 @@ http://localhost:8080
 
 ## Running Tests
 
-The complete test suite can be executed using Maven.
+### Test Database
+
+Integration tests use a dedicated MySQL database.
+
+Create it locally:
+
+```sql
+CREATE DATABASE fitness_tracker_test;
+```
+
+The test profile is configured in:
+
+```text
+src/test/resources/application-test.properties
+```
+
+Example configuration:
+
+```properties
+spring.datasource.url=jdbc:mysql://127.0.0.1:3306/fitness_tracker_test
+spring.datasource.username=${SPRING_DATASOURCE_USERNAME:root}
+spring.datasource.password=${SPRING_DATASOURCE_PASSWORD:root}
+
+spring.jpa.hibernate.ddl-auto=create-drop
+spring.jpa.show-sql=true
+```
+
+The integration-test classes activate the test profile using:
+
+```java
+@ActiveProfiles("test")
+```
+
+### Run the Complete Test Suite
 
 Linux or macOS:
 
@@ -1036,17 +1254,42 @@ Alternatively:
 mvn clean verify
 ```
 
+### Run a Single Test Class
+
+Windows:
+
+```powershell
+.\mvnw.cmd "-Dtest=AuthIntegrationTest" test
+```
+
+Linux or macOS:
+
+```bash
+./mvnw -Dtest=AuthIntegrationTest test
+```
+
+### Run a Single Test Method
+
+Windows:
+
+```powershell
+.\mvnw.cmd "-Dtest=AuthIntegrationTest#register_ShouldReturnTokens" test
+```
+
 The project includes:
 
 - Service-layer unit tests
 - Controller-layer tests
-- MockMvc request tests
+- MockMvc tests
+- Integration tests
 - Validation tests
-- Error response tests
-- Authentication controller tests
-- Workout controller tests
-- Exercise definition controller tests
-- Progress controller tests
+- Error-response tests
+- Authentication tests
+- Refresh-token tests
+- Workout tests
+- Exercise-definition tests
+- Progress tests
+- Security and ownership tests
 
 ---
 
@@ -1064,22 +1307,25 @@ The CI pipeline:
 
 1. Checks out the repository
 2. Starts a MySQL 8 service container
-3. Configures Java 26
-4. Restores the Maven dependency cache
-5. Makes the Maven Wrapper executable
-6. Runs:
+3. Creates a dedicated test database
+4. Configures Java 26
+5. Restores the Maven dependency cache
+6. Makes the Maven Wrapper executable
+7. Runs the complete test suite
 
 ```bash
 ./mvnw --batch-mode clean verify
 ```
 
-The CI environment uses a dedicated database:
+The CI environment provides database credentials and the JWT secret through environment variables.
 
-```text
-fitness_tracker_test_db
-```
+The build fails when:
 
-The build fails when compilation or any automated test fails.
+- The project does not compile
+- A unit test fails
+- A controller test fails
+- An integration test fails
+- The Spring application context cannot start
 
 ---
 
@@ -1103,7 +1349,7 @@ http://localhost:8080/v3/api-docs
 2. Copy the returned access token.
 3. Open Swagger UI.
 4. Click the **Authorize** button.
-5. Enter the token.
+5. Enter the access token.
 6. Execute protected requests.
 
 Swagger sends:
@@ -1133,10 +1379,14 @@ src
 │       └── application.properties
 │
 └── test
-    └── java
-        └── com.cosmin.fitness_tracker_api
-            ├── ControllerTest
-            └── ServiceTest
+    ├── java
+    │   └── com.cosmin.fitness_tracker_api
+    │       ├── ControllerTest
+    │       ├── IntegrationTest
+    │       └── ServiceTest
+    │
+    └── resources
+        └── application-test.properties
 ```
 
 Additional project files:
@@ -1147,6 +1397,7 @@ fitness-tracker-api/
 │   └── workflows/
 │       └── ci.yml
 ├── .env
+├── .env.example
 ├── .gitignore
 ├── docker-compose.yml
 ├── Dockerfile
@@ -1160,18 +1411,23 @@ fitness-tracker-api/
 
 ## Security Considerations
 
-- Passwords are encoded before being stored
-- JWT secrets are loaded through environment variables
-- Real credentials are excluded from source control
+- Passwords are encoded before persistence
+- JWT secrets are loaded from environment variables
+- Database credentials are excluded from source control
 - Protected endpoints require authentication
+- Access tokens are short-lived
+- Refresh tokens are persisted
+- Refresh tokens are rotated after use
+- Logout invalidates the supplied refresh token
 - Resource ownership is verified using the authenticated username
 - Users cannot access workouts belonging to other accounts
 - Unauthorized resource access does not expose another user's data
-- Authentication endpoints are public
+- Authentication endpoints are publicly accessible
 - Swagger and OpenAPI endpoints can be configured as public
 - The application uses stateless authentication for protected requests
+- Development, test, CI, and production secrets should be different
 
-The JWT secret used in production should be long, random and different from development or CI secrets.
+The JWT secret used outside development should be long, random, and securely stored.
 
 ---
 
@@ -1180,12 +1436,12 @@ The JWT secret used in production should be long, random and different from deve
 Possible future improvements include:
 
 - Deploy the API to a cloud platform
-- Add integration tests with Testcontainers
+- Add Testcontainers for isolated integration-test databases
 - Add workout filtering by date and name
 - Add sorting options for workout history
 - Add exercise progress history
 - Add estimated one-repetition maximum calculations
-- Add charts-ready progress endpoints
+- Add chart-ready progress endpoints
 - Add user profile management
 - Add password reset functionality
 - Add email verification
@@ -1194,6 +1450,7 @@ Possible future improvements include:
 - Add structured application logging
 - Add health and metrics endpoints with Spring Boot Actuator
 - Add database migrations using Flyway or Liquibase
+- Add OAuth2 login support
 
 ---
 
@@ -1202,11 +1459,13 @@ Possible future improvements include:
 While building this project, I practiced:
 
 - Designing REST APIs with Spring Boot
-- Structuring a backend using controller, service and repository layers
+- Structuring a backend using controller, service, and repository layers
 - Separating persistence entities from request and response DTOs
 - Implementing JWT authentication
-- Implementing access and refresh token flows
-- Protecting endpoints with Spring Security
+- Implementing access-token and refresh-token flows
+- Implementing refresh-token rotation
+- Invalidating refresh tokens during logout
+- Protecting endpoints using Spring Security
 - Extracting authenticated users from the security context
 - Restricting resources to their owners
 - Working with JPA and Hibernate relationships
@@ -1218,18 +1477,20 @@ While building this project, I practiced:
 - Implementing pagination
 - Calculating workout volume
 - Calculating weekly and monthly progress
-- Selecting personal records with tie-breaking rules
+- Selecting personal records using weight, repetitions, and RIR
 - Validating request bodies and path parameters
 - Handling custom exceptions globally
-- Writing unit tests with JUnit and Mockito
+- Writing service unit tests with JUnit and Mockito
 - Testing controllers with MockMvc
-- Mocking Spring dependencies in web-layer tests
+- Writing integration tests with Spring Boot and MySQL
+- Testing complete controller-service-repository flows
+- Testing authentication and resource ownership
 - Running tests using Maven
 - Containerizing an application with Docker
-- Connecting Spring Boot to MySQL through Docker Compose
-- Managing configuration with environment variables
+- Connecting Spring Boot to MySQL using Docker Compose
+- Managing configuration through environment variables
 - Creating a GitHub Actions continuous integration pipeline
-- Running a MySQL service inside CI
+- Running a MySQL service container inside CI
 - Generating interactive API documentation with Swagger and OpenAPI
 - Configuring JWT authentication inside Swagger UI
 - Keeping credentials and secrets outside source control
@@ -1238,33 +1499,41 @@ While building this project, I practiced:
 
 ## Status
 
-The main API functionality is implemented and covered by automated service and controller tests.
+The core API functionality is implemented and covered by automated tests.
 
 The project currently includes:
 
-- Authentication
+- User registration
+- User login
 - JWT access tokens
-- Refresh token support
-- Logout
+- Refresh-token persistence
+- Refresh-token rotation
+- Logout and token invalidation
 - Workout management
-- Exercise and set management
+- Exercise-definition management
+- Workout-exercise management
+- Exercise-set management
 - Progress calculations
 - Personal records
 - Pagination
 - Validation
 - Global exception handling
-- Swagger documentation
+- Resource ownership protection
+- Swagger/OpenAPI documentation
 - Docker support
-- GitHub Actions CI
-- Service tests
+- Docker Compose support
+- Service unit tests
 - Controller tests
+- Integration tests
+- GitHub Actions CI
+- MySQL integration inside CI
 
-The project is actively maintained as a Java and Spring Boot backend portfolio project.
+The project is maintained as a Java and Spring Boot backend portfolio project.
 
 ---
 
 ## Author
 
-**Cosmin**
+**Anghel Cosmin**
 
 GitHub: [cosmiinn75](https://github.com/cosmiinn75)
