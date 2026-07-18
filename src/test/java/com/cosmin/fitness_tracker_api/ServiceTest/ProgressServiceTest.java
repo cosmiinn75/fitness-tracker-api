@@ -234,7 +234,7 @@ public class ProgressServiceTest {
                 .thenReturn(List.of(lighterSet, heavierSet));
 
         PersonalRecordResponse response =
-                progressService.getPersonalRecordById(exerciseDefinitionId);
+                progressService.getPersonalRecordByExerciseDefinitionId(exerciseDefinitionId);
 
         assertEquals(exerciseDefinitionId, response.exerciseDefinitionId());
         assertEquals("Bench Press", response.exerciseName());
@@ -303,7 +303,7 @@ public class ProgressServiceTest {
                 .thenReturn(List.of(firstSet, secondSet));
 
         PersonalRecordResponse response =
-                progressService.getPersonalRecordById(exerciseDefinitionId);
+                progressService.getPersonalRecordByExerciseDefinitionId(exerciseDefinitionId);
 
         assertEquals(100.0, response.weight(), 0.001);
         assertEquals(8, response.reps());
@@ -322,7 +322,7 @@ public class ProgressServiceTest {
 
         assertThrows(
                 ExerciseDefinitionNotFoundException.class,
-                () -> progressService.getPersonalRecordById(exerciseDefinitionId)
+                () -> progressService.getPersonalRecordByExerciseDefinitionId(exerciseDefinitionId)
         );
 
         verify(exerciseDefinitionRepository).findById(exerciseDefinitionId);
@@ -352,7 +352,7 @@ public class ProgressServiceTest {
 
         RuntimeException exception = assertThrows(
                 PersonalRecordNotFoundException.class,
-                () -> progressService.getPersonalRecordById(exerciseDefinitionId)
+                () -> progressService.getPersonalRecordByExerciseDefinitionId(exerciseDefinitionId)
         );
 
         assertEquals(

@@ -20,10 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -204,7 +201,11 @@ public class WorkoutServiceTests {
         int page = 0;
         int size = 10;
 
-        Pageable pageable = PageRequest.of(page, size);
+        String name = "push";
+        LocalDate startDate = LocalDate.of(2025, 2, 9);
+        LocalDate endDate = LocalDate.of(2025, 3, 11);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("date").descending());
 
         Page<Workout> workoutPage = new PageImpl<>(
                 List.of(workout),
@@ -212,23 +213,48 @@ public class WorkoutServiceTests {
                 1
         );
 
-        when(workoutRepository.findByUserUsernameOrderByDateDesc("cosmin", pageable))
-                .thenReturn(workoutPage);
+        when(workoutRepository.findFilteredWorkouts(
+                "cosmin",
+                name,
+                startDate,
+                endDate,
+                pageable
+        )).thenReturn(workoutPage);
 
-        when(workoutExerciseRepository.findByWorkoutOrderByExerciseNumberAsc(workout))
+        when(workoutExerciseRepository
+                .findByWorkoutOrderByExerciseNumberAsc(workout))
                 .thenReturn(new ArrayList<>());
 
-        PagedResponse<WorkoutResponse> response = workoutService.getAllWorkouts(page, size);
-
+        PagedResponse<WorkoutResponse> response =
+                workoutService.getAllWorkoutsFiltered(
+                        page,
+                        size,
+                        name,
+                        startDate,
+                        endDate
+                );
 
         assertEquals(1, response.content().size());
         assertEquals(1L, response.content().getFirst().id());
         assertEquals("push", response.content().getFirst().workoutName());
-        assertEquals(LocalDate.of(2025, 2, 10), response.content().getFirst().date());
-        assertEquals(0, response.content().getFirst().exerciseResponses().size());
+        assertEquals(
+                LocalDate.of(2025, 2, 10),
+                response.content().getFirst().date()
+        );
+        assertTrue(
+                response.content().getFirst().exerciseResponses().isEmpty()
+        );
 
-        verify(workoutRepository).findByUserUsernameOrderByDateDesc("cosmin", pageable);
-        verify(workoutExerciseRepository).findByWorkoutOrderByExerciseNumberAsc(workout);
+        verify(workoutRepository).findFilteredWorkouts(
+                "cosmin",
+                name,
+                startDate,
+                endDate,
+                pageable
+        );
+
+        verify(workoutExerciseRepository)
+                .findByWorkoutOrderByExerciseNumberAsc(workout);
     }
 
     @Test

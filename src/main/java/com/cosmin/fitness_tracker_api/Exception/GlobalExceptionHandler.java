@@ -64,6 +64,14 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(InvalidDateRangeException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidDateRangeException(InvalidDateRangeException e) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error" , "Bad request");
+        response.put("message" , e.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
 
     @ExceptionHandler(NameAlreadyExistsException.class)
     public ResponseEntity<Map<String, String>> handleNameAlreadyExistsException(NameAlreadyExistsException e) {

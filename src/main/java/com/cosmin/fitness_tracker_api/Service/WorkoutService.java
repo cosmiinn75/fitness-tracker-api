@@ -9,10 +9,12 @@ import com.cosmin.fitness_tracker_api.Repository.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -53,12 +55,26 @@ public class WorkoutService {
 
 
     @Transactional(readOnly = true)
-    public PagedResponse<WorkoutResponse> getAllWorkouts(Integer page , Integer size) {
+    public PagedResponse<WorkoutResponse> getAllWorkoutsFiltered(Integer page ,
+                                                                 Integer size,
+                                                                 String name,
+                                                                 LocalDate startDate,
+                                                                 LocalDate endDate) {
         String currentUsername = getCurrentUsername();
 
-        Pageable pageable =  PageRequest.of(page,size);
+        if (startDate != null
+                && endDate != null
+                && startDate.isAfter(endDate)) {
+            throw new InvalidDateRangeException(
+                    "Start date must be before or equal to end date"
+            );
+        }
 
-       Page<WorkoutResponse> responses = workoutRepository.findByUserUsernameOrderByDateDesc(currentUsername,pageable)
+        String normalizedName = name == null || name.isBlank() ? null : name.trim();
+
+        Pageable pageable =  PageRequest.of(page,size, Sort.by(Sort.Direction.DESC,"date"));
+
+       Page<WorkoutResponse> responses = workoutRepository.findFilteredWorkouts(currentUsername,normalizedName,startDate,endDate,pageable)
                 .map(this::toWorkoutResponse);
         return PagedResponse.from(responses);
     }

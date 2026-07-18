@@ -7,6 +7,7 @@ public record PersonalRecordResponse(
         String exerciseName,
         Double weight,
         Integer reps,
+        Integer rir,
         LocalDate date
 ) {
 }

@@ -2,7 +2,6 @@ package com.cosmin.fitness_tracker_api.ControllerTest;
 
 import com.cosmin.fitness_tracker_api.Controller.WorkoutController;
 import com.cosmin.fitness_tracker_api.DTO.*;
-import com.cosmin.fitness_tracker_api.Model.Workout;
 import com.cosmin.fitness_tracker_api.Security.JWTFilter;
 import com.cosmin.fitness_tracker_api.Service.WorkoutService;
 import org.junit.jupiter.api.Test;
@@ -52,7 +51,8 @@ public class WorkoutControllerTest {
                 true
         );
 
-        when(workoutService.getAllWorkouts(0,20)).thenReturn(response);
+        when(workoutService.getAllWorkoutsFiltered(eq(0),eq(20),isNull(), isNull(), isNull()))
+                .thenReturn(response);
 
         mockMvc.perform(
                 get("/api/workouts")
@@ -69,7 +69,7 @@ public class WorkoutControllerTest {
                 .andExpect(jsonPath("$.first").value(response.first()))
                 .andExpect(jsonPath("$.last").value(response.last()));
 
-        verify(workoutService).getAllWorkouts(0,20);
+        verify(workoutService).getAllWorkoutsFiltered(eq(0),eq(20),isNull(), isNull(), isNull());
     }
 
 
@@ -301,7 +301,7 @@ public class WorkoutControllerTest {
         List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
 
         WorkoutResponse workoutResponse = new WorkoutResponse(
-                1l,
+                1L,
                 "Pull",
                 LocalDate.of(2026, 7, 5),
                 exerciseResponseList
@@ -366,7 +366,7 @@ public class WorkoutControllerTest {
         List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
 
         WorkoutResponse workoutResponse = new WorkoutResponse(
-                1l,
+                1L,
                 "Pull",
                 LocalDate.of(2026, 7, 5),
                 exerciseResponseList

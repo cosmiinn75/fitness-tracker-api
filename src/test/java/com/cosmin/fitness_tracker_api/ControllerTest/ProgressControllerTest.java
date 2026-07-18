@@ -1,6 +1,5 @@
 package com.cosmin.fitness_tracker_api.ControllerTest;
 
-import com.cosmin.fitness_tracker_api.Controller.ExerciseDefinitionController;
 import com.cosmin.fitness_tracker_api.Controller.ProgressController;
 import com.cosmin.fitness_tracker_api.DTO.PersonalRecordResponse;
 import com.cosmin.fitness_tracker_api.DTO.VolumeProgressResponse;
@@ -13,10 +12,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
-import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -114,10 +110,11 @@ public class ProgressControllerTest {
                 "Bench Press",
                 100.00,
                 5,
+                1,
                 LocalDate.of(2026,5,7)
         );
 
-        when(progressService.getPersonalRecordById(1L)).thenReturn(response);
+        when(progressService.getPersonalRecordByExerciseDefinitionId(1L)).thenReturn(response);
 
         mockMvc.perform(
                 get("/api/progress/exercises/1/personal-record")
@@ -130,7 +127,7 @@ public class ProgressControllerTest {
                 .andExpect(jsonPath("$.reps").value(5))
                 .andExpect(jsonPath("$.date").value(LocalDate.of(2026,5,7).toString()));
 
-        verify(progressService).getPersonalRecordById(1L);
+        verify(progressService).getPersonalRecordByExerciseDefinitionId(1L);
     }
 
 

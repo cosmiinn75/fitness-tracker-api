@@ -122,7 +122,7 @@ public class ProgressController {
     public PersonalRecordResponse getPersonalRecord(
             @PathVariable @Positive Long exerciseDefinitionId
     ) {
-        return progressService.getPersonalRecordById(
+        return progressService.getPersonalRecordByExerciseDefinitionId(
                 exerciseDefinitionId
         );
     }

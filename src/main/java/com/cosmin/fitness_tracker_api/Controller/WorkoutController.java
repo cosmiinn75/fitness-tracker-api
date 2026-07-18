@@ -12,6 +12,13 @@ import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDate;
+
+
 
 @Validated
 @RestController
@@ -31,7 +38,7 @@ public class WorkoutController {
 
     @Operation(
             summary = "Get all workouts",
-            description = "Returns a paginated list containing the workouts, exercises and sets of the authenticated user"
+            description = "Returns a paginated list containing the workouts, exercises and sets of the authenticated user.Apply filters such as workout name , start date and end date."
     )
     @ApiResponses({
             @ApiResponse(
@@ -49,10 +56,30 @@ public class WorkoutController {
     })
     @GetMapping
     public PagedResponse<WorkoutResponse> getAllWorkouts(
-            @RequestParam(defaultValue = "0") Integer page,
-            @RequestParam(defaultValue = "10") Integer size
+            @RequestParam(defaultValue = "0")
+            @Min(0) int page,
+
+            @RequestParam(defaultValue = "10")
+            @Min(1) @Max(100) int size,
+
+            @RequestParam(required = false)
+            String name,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate startDate,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate endDate
     ) {
-        return workoutService.getAllWorkouts(page, size);
+        return workoutService.getAllWorkoutsFiltered(
+                page,
+                size,
+                name,
+                startDate,
+                endDate
+        );
     }
 
     @Operation(

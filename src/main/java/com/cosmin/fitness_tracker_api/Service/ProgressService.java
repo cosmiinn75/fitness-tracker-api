@@ -75,7 +75,7 @@ public class ProgressService {
 
 
 
-    public PersonalRecordResponse getPersonalRecordById(Long id) {
+    public PersonalRecordResponse getPersonalRecordByExerciseDefinitionId(Long id) {
         String username = getCurrentUsername();
 
         ExerciseDefinition exerciseDefinition = exerciseDefinitionRepository.findById(id)
@@ -90,6 +90,11 @@ public class ProgressService {
                 .max(
                         Comparator.comparing(ExerciseSet::getWeight)
                                 .thenComparing(ExerciseSet::getReps)
+                                .thenComparing(ExerciseSet::getRir)
+                                .thenComparing(set -> set.getWorkoutExercise()
+                                        .getWorkout()
+                                        .getDate()
+                                )
                 )
                 .orElseThrow(() -> new PersonalRecordNotFoundException("No sets found for this exercise"));
 
@@ -99,6 +104,7 @@ public class ProgressService {
                 exerciseDefinition.getName(),
                 bestSet.getWeight(),
                 bestSet.getReps(),
+                bestSet.getRir(),
                 bestSet.getWorkoutExercise().getWorkout().getDate()
         );
     }
