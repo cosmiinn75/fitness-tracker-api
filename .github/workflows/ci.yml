@@ -22,25 +22,26 @@ jobs:
     services:
       mysql:
         image: mysql:8.0
-
         env:
-          MYSQL_DATABASE: fitness_tracker_test_db
+          MYSQL_DATABASE: fitness_tracker_test
           MYSQL_ROOT_PASSWORD: root
-
         ports:
           - 3306:3306
-
         options: >-
-          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
           --health-start-period=20s
 
     env:
-      DB_URL: jdbc:mysql://127.0.0.1:3306/fitness_tracker_test_db
+      DB_URL: jdbc:mysql://127.0.0.1:3306/fitness_tracker_test
       DB_USERNAME: root
       DB_PASSWORD: root
+
+      TEST_DB_USERNAME: root
+      TEST_DB_PASSWORD: root
+
       JWT_SECRET: ci-test-jwt-secret-key-that-is-long-enough-2026
       SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
 
