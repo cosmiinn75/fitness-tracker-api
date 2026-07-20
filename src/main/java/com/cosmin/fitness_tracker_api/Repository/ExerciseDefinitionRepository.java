@@ -11,4 +11,6 @@ public interface ExerciseDefinitionRepository extends JpaRepository<ExerciseDefi
     boolean existsByName(String name);
 
     Optional<ExerciseDefinition> findByName(String name);
+
+    boolean existsByNameIgnoreCase(String name);
 }

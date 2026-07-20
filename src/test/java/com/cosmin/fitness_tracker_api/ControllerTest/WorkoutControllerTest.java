@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -429,6 +430,40 @@ public class WorkoutControllerTest {
                 .andExpect(jsonPath("$.exerciseResponses").isArray());
 
         verify(workoutService).deleteWorkoutExercise(eq(1L),eq(1));
+    }
+
+    @Test
+    void duplicateWorkout_ShouldReturnWorkoutResponse() throws Exception {
+
+        List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
+
+        WorkoutResponse workoutResponse = new WorkoutResponse(
+                1L,
+                "Pull",
+                LocalDate.of(2026, 7, 5),
+                exerciseResponseList
+        );
+
+        when(workoutService.duplicateWorkout(any(DuplicateWorkoutRequest.class),eq(1L))).thenReturn(workoutResponse);
+
+        mockMvc.perform(
+                post("/api/workouts/1/duplicate")
+                        .contentType(APPLICATION_JSON)
+                        .content(
+                                """
+                                        {
+                                        "date": "2026-07-05",
+                                        "workoutName": "Pull"
+                                        }
+                                        """
+                        )
+        )
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workoutName").value( workoutResponse.workoutName()))
+                .andExpect(jsonPath("$.date").value(workoutResponse.date().toString()));
+
+        verify(workoutService).duplicateWorkout(any(),eq(1L));
     }
 
 

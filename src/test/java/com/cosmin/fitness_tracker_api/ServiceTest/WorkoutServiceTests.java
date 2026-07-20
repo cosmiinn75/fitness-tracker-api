@@ -479,6 +479,22 @@ public class WorkoutServiceTests {
             return savedWorkout;
         });
 
+        when(workoutExerciseRepository
+                .findByWorkoutOrderByExerciseNumberAsc(any(Workout.class)))
+                .thenAnswer(invocation -> {
+                    Workout savedWorkout = invocation.getArgument(0);
+                    return savedWorkout.getWorkoutExercises();
+                });
+
+        when(exerciseSetRepository
+                .findByWorkoutExerciseOrderBySetNumberAsc(any(WorkoutExercise.class)))
+                .thenAnswer(invocation -> {
+                    WorkoutExercise savedExercise = invocation.getArgument(0);
+                    return savedExercise.getExerciseSets();
+                });
+
+
+
         WorkoutResponse response = workoutService.duplicateWorkout(request,workoutId);
 
         assertNotNull(response);
@@ -488,6 +504,17 @@ public class WorkoutServiceTests {
         assertEquals(LocalDate.of(2026, 7, 16), response.date());
         assertEquals("Push",workout.getWorkoutName());
         assertEquals(LocalDate.of(2026, 7, 15), workout.getDate());
+
+        assertEquals(1, response.exerciseResponses().size());
+        assertEquals("Bench Press",
+                response.exerciseResponses().getFirst().exerciseName());
+
+        assertEquals(1,
+                response.exerciseResponses().getFirst().setResponses().size());
+
+        assertEquals(100.0,
+                response.exerciseResponses().getFirst()
+                        .setResponses().getFirst().weight());
 
         assertNotEquals(workout.getId(), response.id());
 

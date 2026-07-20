@@ -19,7 +19,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleAccountAlreadyExistsException(AccountAlreadyExistsException e) {
 
         Map<String, String> response = new HashMap<>();
-        response.put("error" , "Bad request");
+        response.put("error" , "Conflict");
         response.put("message" , e.getMessage());
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
 
