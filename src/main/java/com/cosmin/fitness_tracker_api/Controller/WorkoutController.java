@@ -439,4 +439,36 @@ public class WorkoutController {
                 exerciseNumber
         );
     }
+
+
+    @Operation(
+            summary = "Duplicate a workout",
+            description = "Creates a new workout by copying all exercises and sets from an existing workout"
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Workout duplicated successfully"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid workout ID or request body"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Missing or invalid JWT token"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Workout not found"
+            )
+    })
+    @PostMapping("/{workoutId}/duplicate")
+    public WorkoutResponse duplicateWorkout(
+            @Valid @RequestBody DuplicateWorkoutRequest request,
+            @PathVariable @Positive Long workoutId
+    )
+    {
+        return workoutService.duplicateWorkout(request,workoutId);
+    }
 }

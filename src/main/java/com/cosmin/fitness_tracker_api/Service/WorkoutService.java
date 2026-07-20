@@ -399,6 +399,53 @@ public class WorkoutService {
         return  toWorkoutResponse(workout,exerciseResponses);
     }
 
+    @Transactional
+    public WorkoutResponse duplicateWorkout(DuplicateWorkoutRequest request , Long workoutId){
+
+        Workout workoutToDuplicate = workoutRepository.findByIdAndUserUsername(workoutId,getCurrentUsername())
+                .orElseThrow(() -> new WorkoutNotFoundException("Workout with id: "+ workoutId + " does not exist"));
+
+        Workout newWorkout = new Workout();
+            newWorkout.setWorkoutName(request.workoutName());
+            newWorkout.setDate(request.date());
+            newWorkout.setUser(workoutToDuplicate.getUser());
+
+        List<WorkoutExercise> workoutExercises = workoutToDuplicate.getWorkoutExercises();
+        List<WorkoutExercise> newWorkoutExercises = new ArrayList<>();
+        for (WorkoutExercise workoutExercise : workoutExercises) {
+
+            WorkoutExercise newWorkoutExercise = new WorkoutExercise();
+            newWorkoutExercise.setExerciseNumber(workoutExercise.getExerciseNumber());
+            newWorkoutExercise.setWorkout(newWorkout);
+            newWorkoutExercise.setExerciseDefinition(workoutExercise.getExerciseDefinition());
+
+
+            List<ExerciseSet> exerciseSets = workoutExercise.getExerciseSets();
+            List<ExerciseSet> newExerciseSets = new ArrayList<>();
+            for (ExerciseSet exerciseSet : exerciseSets) {
+
+                ExerciseSet newExerciseSet = new ExerciseSet();
+                newExerciseSet.setWeight(exerciseSet.getWeight());
+                newExerciseSet.setReps(exerciseSet.getReps());
+                newExerciseSet.setRir(exerciseSet.getRir());
+                newExerciseSet.setSetNumber(exerciseSet.getSetNumber());
+                newExerciseSet.setWorkoutExercise(newWorkoutExercise);
+
+                newExerciseSets.add(newExerciseSet);
+            }
+            newWorkoutExercise.setExerciseSets(newExerciseSets);
+
+            newWorkoutExercises.add(newWorkoutExercise);
+
+        }
+
+        newWorkout.setWorkoutExercises(newWorkoutExercises);
+
+        workoutRepository.save(newWorkout);
+
+        return toWorkoutResponse(newWorkout);
+    }
+
 
     private WorkoutResponse toWorkoutResponse(Workout workout,
                                               List<ExerciseResponse> exerciseResponses) {

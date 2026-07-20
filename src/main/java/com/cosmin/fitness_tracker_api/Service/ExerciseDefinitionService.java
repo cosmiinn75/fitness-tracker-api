@@ -56,6 +56,11 @@ public class ExerciseDefinitionService {
         ExerciseDefinition exerciseDefinition = exerciseDefinitionRepository.findById(id)
                 .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Exercise definition not found"));
 
+        if(exerciseDefinitionRepository.existsByName(request.exerciseName())) {
+            throw new  NameAlreadyExistsException("Exercise name already exists");
+        }
+
+
         exerciseDefinition.setName(request.exerciseName());
         exerciseDefinition.setMuscleGroup(request.muscleGroup());
 

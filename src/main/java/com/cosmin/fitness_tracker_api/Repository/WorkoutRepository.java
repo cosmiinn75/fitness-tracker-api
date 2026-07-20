@@ -24,7 +24,7 @@ public interface WorkoutRepository extends JpaRepository<Workout, Long> {
         SELECT w
         FROM Workout w
         WHERE w.user.username = :username
-            AND (:name IS NULL OR w.workoutName LIKE LOWER(CONCAT('%',:name,'%')) )
+            AND (:name IS NULL OR LOWER(w.workoutName) LIKE LOWER(CONCAT('%',:name,'%')) )
             AND (:startDate IS NULL OR w.date >= :startDate)
             AND (:endDate IS NULL OR w.date <= :endDate)
 """)
