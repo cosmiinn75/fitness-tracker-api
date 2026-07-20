@@ -403,7 +403,7 @@ public class WorkoutService {
     public WorkoutResponse duplicateWorkout(DuplicateWorkoutRequest request , Long workoutId){
 
         Workout workoutToDuplicate = workoutRepository.findByIdAndUserUsername(workoutId,getCurrentUsername())
-                .orElseThrow(() -> new WorkoutNotFoundException("Workout with id: "+ workoutId + " does not exist"));
+                .orElseThrow(() -> new WorkoutNotFoundException("Workout with id: "+ workoutId + " not found"));
 
         Workout newWorkout = new Workout();
             newWorkout.setWorkoutName(request.workoutName());

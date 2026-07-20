@@ -3,6 +3,7 @@ package com.cosmin.fitness_tracker_api.ServiceTest;
 import com.cosmin.fitness_tracker_api.DTO.*;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import com.cosmin.fitness_tracker_api.Exception.ExerciseDefinitionNotFoundException;
+import com.cosmin.fitness_tracker_api.Exception.WorkoutNotFoundException;
 import com.cosmin.fitness_tracker_api.Model.ExerciseDefinition;
 import com.cosmin.fitness_tracker_api.Model.ExerciseSet;
 import com.cosmin.fitness_tracker_api.Model.User;
@@ -430,6 +431,85 @@ public class WorkoutServiceTests {
 
         verify(exerciseDefinitionRepository)
                 .findById(newExerciseDefinitionId);
+    }
+
+    @Test
+    void duplicateWorkout_ShouldCopyWorkout(){
+        mockAuthenticatedUser();
+        Long workoutId = 1L;
+
+        DuplicateWorkoutRequest request = new DuplicateWorkoutRequest(
+                LocalDate.of(2026,7,16),
+                "New Push"
+        );
+
+        ExerciseDefinition exerciseDefinition = new ExerciseDefinition();
+        exerciseDefinition.setId(1L);
+        exerciseDefinition.setName("Bench Press");
+        exerciseDefinition.setMuscleGroup(MuscleGroup.CHEST);
+
+        Workout workout = new Workout();
+        workout.setId(workoutId);
+        workout.setWorkoutName("Push");
+        workout.setDate(LocalDate.of(2026, 7, 15));
+
+        WorkoutExercise workoutExercise = new WorkoutExercise();
+        workoutExercise.setId(1L);
+        workoutExercise.setExerciseDefinition(exerciseDefinition);
+        workoutExercise.setWorkout(workout);
+
+        ExerciseSet exerciseSet = new ExerciseSet();
+        exerciseSet.setId(1L);
+        exerciseSet.setSetNumber(1);
+        exerciseSet.setWeight(100.0);
+        exerciseSet.setReps(5);
+        exerciseSet.setRir(1);
+        exerciseSet.setWorkoutExercise(workoutExercise);
+
+        workoutExercise.setExerciseSets(List.of(exerciseSet));
+        workout.setWorkoutExercises(List.of(workoutExercise));
+
+        when(workoutRepository.findByIdAndUserUsername(workoutId, "cosmin"))
+                .thenReturn(Optional.of(workout));
+
+        when(workoutRepository.save(any(Workout.class))).
+        thenAnswer(invocation -> {
+            Workout savedWorkout = invocation.getArgument(0);
+            savedWorkout.setId(2L);
+            return savedWorkout;
+        });
+
+        WorkoutResponse response = workoutService.duplicateWorkout(request,workoutId);
+
+        assertNotNull(response);
+        assertNotNull(response.id());
+
+        assertEquals("New Push",response.workoutName());
+        assertEquals(LocalDate.of(2026, 7, 16), response.date());
+        assertEquals("Push",workout.getWorkoutName());
+        assertEquals(LocalDate.of(2026, 7, 15), workout.getDate());
+
+        assertNotEquals(workout.getId(), response.id());
+
+        verify(workoutRepository).findByIdAndUserUsername(workoutId, "cosmin");
+        verify(workoutRepository).save(any(Workout.class));
+    }
+
+    @Test
+    void duplicateWorkout_ShouldReturnNotFoundWheNoWorkout(){
+        mockAuthenticatedUser();
+        Long workoutId = 1L;
+
+        DuplicateWorkoutRequest request = new DuplicateWorkoutRequest(
+                LocalDate.of(2026,7,5),
+                "Push"
+        );
+
+        when(workoutRepository.findByIdAndUserUsername(workoutId, "cosmin"))
+                .thenReturn(Optional.empty());
+
+        assertThrows(WorkoutNotFoundException.class, () -> workoutService.duplicateWorkout(request,workoutId));
+
     }
 
 
