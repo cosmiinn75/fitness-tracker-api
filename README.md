@@ -2,54 +2,152 @@
 
 [![Fitness Tracker CI](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml/badge.svg)](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml)
 
-A secure RESTful backend application built with **Java and Spring Boot** for managing workouts, exercises, sets, training volume, and personal records.
+A secure REST API for recording workouts and tracking strength-training progress, built with **Java 26**, **Spring Boot 4**, and **MySQL**.
 
-The project includes JWT authentication, refresh-token rotation, logout and token invalidation, user-specific resource access, nested workout management, pagination, validation, global exception handling, Swagger/OpenAPI documentation, Docker support, automated testing, and continuous integration with GitHub Actions.
-
----
+The project goes beyond basic CRUD operations by implementing JWT authentication with refresh-token rotation, resource ownership, nested workout management, workout duplication, filtering and pagination, exercise history, estimated one-repetition maximum calculations, progress summaries, automated testing, Docker support, health monitoring, and continuous integration.
 
 ## Table of Contents
 
-- [Features](#features)
+- [Main Features](#main-features)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Domain Model](#domain-model)
 - [API Endpoints](#api-endpoints)
 - [Authentication Flow](#authentication-flow)
-- [Request Examples](#request-examples)
 - [Progress Tracking](#progress-tracking)
+- [Request Examples](#request-examples)
 - [Validation and Error Handling](#validation-and-error-handling)
-- [Environment Variables](#environment-variables)
 - [Running with Docker](#running-with-docker)
 - [Running Locally](#running-locally)
-- [Running Tests](#running-tests)
+- [Environment Variables](#environment-variables)
+- [Swagger and Health Check](#swagger-and-health-check)
+- [Testing](#testing)
 - [Continuous Integration](#continuous-integration)
-- [Swagger and OpenAPI](#swagger-and-openapi)
 - [Project Structure](#project-structure)
-- [Security Considerations](#security-considerations)
+- [Security](#security)
 - [Future Improvements](#future-improvements)
 - [What I Learned](#what-i-learned)
-- [Status](#status)
 - [Author](#author)
 
----
-
-## Features
+## Main Features
 
 ### Authentication and Security
 
-- User registration
-- User login
-- JWT access-token authentication
-- Refresh-token persistence
+- User registration and login
+- Short-lived JWT access tokens
+- Database-persisted refresh tokens
 - Refresh-token rotation
-- Logout and refresh-token invalidation
+- Logout and refresh-token revocation
 - BCrypt password hashing
 - Stateless Spring Security configuration
-- Protected API endpoints
-- User-specific resource ownership checks
-- Bearer-token authentication
-- Secure configuration through environment variables
+- JWT request filter
+- Ownership checks for workouts and progress data
+- Secrets and database credentials loaded from environment variables
+
+### Exercise Definitions
+
+- Create reusable exercise definitions
+- Retrieve all exercise definitions
+- Retrieve an exercise definition by ID
+- Update an exercise name and muscle group
+- Prevent duplicate exercise names while still allowing an exercise to keep its current name during an update
+- Supported muscle groups: `CHEST`, `BACK`, `ARMS`, `SHOULDERS`, `LEGS`, and `CORE`
+
+### Workout Management
+
+- Create workouts with multiple exercises and sets
+- Retrieve a workout by ID
+- Retrieve paginated workout history
+- Filter workouts by name and date range
+- Sort workout history by date in descending order
+- Update workout metadata with `PATCH`
+- Replace an entire workout with `PUT`
+- Delete workouts
+- Duplicate a workout with all its exercises and sets while choosing a new name and date
+- Restrict every workout operation to the authenticated owner
+
+### Exercises and Sets Inside a Workout
+
+- Add an exercise to an existing workout
+- Change an exercise definition while preserving its sets
+- Delete an exercise from a workout
+- Add a set to an exercise
+- Partially update a set
+- Delete a set
+- Automatically renumber exercises and sets after deletion
+- Preserve exercise and set order through `exerciseNumber` and `setNumber`
+
+### Progress Tracking
+
+- Calculate the total volume of a workout
+- Calculate total volume over the last seven days
+- Calculate total volume from the beginning of the current month
+- Retrieve a personal record for an exercise
+- Retrieve paginated exercise history with optional date filters
+- Calculate an estimated one-repetition maximum for each exercise-history entry
+- Retrieve a compact activity summary for the authenticated user
+
+### API Quality and Operations
+
+- Request-body, path-variable, and pagination validation
+- Centralized exception handling
+- Consistent HTTP status codes
+- Swagger UI and OpenAPI documentation
+- JWT authorization support inside Swagger UI
+- Spring Boot Actuator health endpoint
+- Multi-stage Docker image
+- Docker Compose setup for the API and MySQL
+- Automated service, controller, and integration tests
+- GitHub Actions continuous integration
+
+## Tech Stack
+
+| Area | Technology |
+| --- | --- |
+| Language | Java 26 |
+| Framework | Spring Boot 4.1.0 |
+| Web | Spring Web MVC |
+| Security | Spring Security, JWT, BCrypt |
+| Persistence | Spring Data JPA, Hibernate |
+| Database | MySQL 8 |
+| Validation | Jakarta Bean Validation |
+| API documentation | Springdoc OpenAPI, Swagger UI |
+| Monitoring | Spring Boot Actuator |
+| Testing | JUnit, Mockito, MockMvc, Spring Boot Test |
+| Build tool | Maven Wrapper |
+| Containers | Docker, Docker Compose |
+| CI | GitHub Actions |
+
+## Architecture
+
+The application follows a layered structure:
+
+1. **Controllers** expose REST endpoints and validate incoming data.
+2. **Services** contain authentication, workout, exercise, and progress business logic.
+3. **Repositories** provide database access through Spring Data JPA.
+4. **DTOs** separate the public API contract from persistence entities.
+5. **Security components** validate JWTs and populate the Spring Security context.
+6. **Global exception handling** converts business and validation exceptions into HTTP responses.
+
+## Domain Model
+
+```mermaid
+erDiagram
+    USER ||--o{ WORKOUT : owns
+    USER ||--o{ REFRESH_TOKEN : receives
+    WORKOUT ||--|{ WORKOUT_EXERCISE : contains
+    EXERCISE_DEFINITION ||--o{ WORKOUT_EXERCISE : identifies
+    WORKOUT_EXERCISE ||--|{ EXERCISE_SET : contains
+```
+
+- A user owns multiple workouts and refresh tokens.
+- A workout contains ordered workout exercises.
+- A workout exercise references a reusable exercise definition.
+- A workout exercise contains ordered sets with weight, repetitions, and optional RIR.
+
+## API Endpoints
+
+All endpoints except authentication, Swagger/OpenAPI, and the health check require a valid access token.
 
 Protected requests use:
 
@@ -57,504 +155,139 @@ Protected requests use:
 Authorization: Bearer <access-token>
 ```
 
-Refresh-token rotation ensures that, when a refresh token is used successfully, the old token is invalidated and replaced with a newly generated token.
+### Authentication
 
----
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/auth/register` | Register a user and receive access and refresh tokens |
+| `POST` | `/api/auth/login` | Authenticate and receive access and refresh tokens |
+| `POST` | `/api/auth/refresh` | Rotate a refresh token and receive a new token pair |
+| `POST` | `/api/auth/logout` | Revoke a refresh token |
 
 ### Exercise Definitions
 
-- Create reusable exercise definitions
-- Retrieve all exercise definitions
-- Retrieve an exercise definition by ID
-- Update an existing exercise definition
-- Prevent duplicate exercise names
-- Associate exercises with muscle groups
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/exercises` | Retrieve all exercise definitions |
+| `GET` | `/api/exercises/{id}` | Retrieve an exercise definition by ID |
+| `POST` | `/api/exercises` | Create an exercise definition |
+| `PUT` | `/api/exercises/{id}` | Update an exercise definition |
 
-Example exercise definitions:
+### Workouts
 
-- Bench Press
-- Squat
-- Deadlift
-- Pull Up
-- Shoulder Press
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/workouts` | Retrieve paginated and filtered workouts |
+| `GET` | `/api/workouts/{id}` | Retrieve one workout |
+| `POST` | `/api/workouts` | Create a workout with exercises and sets |
+| `PATCH` | `/api/workouts/{id}` | Update the workout name and date |
+| `PUT` | `/api/workouts/{id}` | Replace the complete workout |
+| `DELETE` | `/api/workouts/{id}` | Delete a workout |
+| `POST` | `/api/workouts/{workoutId}/duplicate` | Duplicate a workout using a new name and date |
 
----
+The workout-list endpoint supports these query parameters:
 
-### Workout Management
-
-- Create workouts for the authenticated user
-- Add multiple exercises to a workout
-- Add multiple sets to each exercise
-- Retrieve paginated workout history
-- Retrieve a workout by ID
-- Update workout metadata
-- Replace an entire workout
-- Delete workouts
-- Restrict access to the authenticated owner
-
-Each workout can contain multiple exercises, while each workout exercise can contain multiple sets.
-
----
-
-### Exercise Management Inside a Workout
-
-- Add an exercise to an existing workout
-- Change the exercise definition while preserving existing sets
-- Delete an exercise from a workout
-- Automatically renumber remaining exercises after deletion
-
-Exercises are ordered using an `exerciseNumber` field.
-
----
-
-### Set Management
-
-- Add a set to an existing workout exercise
-- Partially update a set
-- Delete a set
-- Automatically renumber remaining sets after deletion
-
-For partial updates, only the fields included in the request are modified.
+| Parameter | Default | Rules | Description |
+| --- | --- | --- | --- |
+| `page` | `0` | Minimum `0` | Page index |
+| `size` | `10` | Between `1` and `100` | Page size |
+| `name` | — | Optional | Case-insensitive partial name filter |
+| `startDate` | — | `YYYY-MM-DD` | Inclusive start date |
+| `endDate` | — | `YYYY-MM-DD` | Inclusive end date |
 
 Example:
 
-```json
-{
-  "reps": 8
-}
+```http
+GET /api/workouts?page=0&size=10&name=push&startDate=2026-07-01&endDate=2026-07-31
 ```
 
-The existing weight and RIR values remain unchanged.
+### Workout Exercises and Sets
 
----
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/workouts/{workoutId}/exercises` | Add an exercise with its sets |
+| `PATCH` | `/api/workouts/{workoutId}/exercises/{exerciseNumber}` | Change the exercise definition |
+| `DELETE` | `/api/workouts/{workoutId}/exercises/{exerciseNumber}` | Delete and renumber an exercise |
+| `POST` | `/api/workouts/{workoutId}/exercises/{exerciseNumber}/sets` | Add a set |
+| `PATCH` | `/api/workouts/{workoutId}/exercises/{exerciseNumber}/sets/{setNumber}` | Partially update a set |
+| `DELETE` | `/api/workouts/{workoutId}/exercises/{exerciseNumber}/sets/{setNumber}` | Delete and renumber a set |
 
-### Progress Tracking
+### Progress
 
-- Calculate total workout volume
-- Calculate training volume for the last seven days
-- Calculate training volume for the last month
-- Retrieve the personal record for a specific exercise
-- Restrict progress data to the authenticated user
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/progress/workouts/{workoutId}/volume` | Calculate the volume of one workout |
+| `GET` | `/api/progress/weekly-volume` | Calculate volume over the last seven days |
+| `GET` | `/api/progress/monthly-volume` | Calculate volume from the start of the current month |
+| `GET` | `/api/progress/exercises/{exerciseDefinitionId}/personal-record` | Retrieve the personal record for an exercise |
+| `GET` | `/api/progress/exercises/{exerciseDefinitionId}/history` | Retrieve paginated exercise history |
+| `GET` | `/api/progress/summary` | Retrieve the user's activity summary |
 
-Workout volume is calculated using:
+Exercise history accepts the following optional query parameters:
+
+```http
+GET /api/progress/exercises/1/history?page=0&size=20&startDate=2026-06-01&endDate=2026-07-31
+```
+
+The default history page size is `20`, and the maximum is `100`. Results are returned from newest to oldest.
+
+### Operations
+
+| Method | Endpoint | Authentication | Description |
+| --- | --- | --- | --- |
+| `GET` | `/actuator/health` | Public | Return application health information |
+
+## Authentication Flow
+
+1. A user registers or logs in.
+2. The API returns an access token and a refresh token.
+3. The access token is sent in the `Authorization` header for protected requests.
+4. Access tokens expire after **15 minutes**.
+5. Refresh tokens are stored in MySQL and expire after **7 days**.
+6. Calling `/api/auth/refresh` validates and revokes the current refresh token, then returns a new access token and refresh token.
+7. Calling `/api/auth/logout` revokes the supplied refresh token.
+
+This rotation mechanism prevents a refresh token from being reused after a successful refresh.
+
+## Progress Tracking
+
+### Workout Volume
+
+Volume is calculated for every set and then summed:
 
 ```text
 volume = weight × repetitions
 ```
 
-Personal records are selected using the following priority:
+### Personal Records
+
+The best recorded set for an exercise is selected using this priority:
 
 1. Highest weight
-2. Highest number of repetitions when the weight is equal
-3. Highest RIR when both weight and repetitions are equal
+2. Highest repetitions when the weight is equal
+3. Highest RIR when weight and repetitions are equal
+4. Most recent workout date when all previous values are equal
 
-For example:
+### Estimated One-Repetition Maximum
 
-```text
-100 kg × 8 repetitions @ RIR 3
-```
-
-is considered better than:
+Exercise history includes the highest estimated 1RM from the sets recorded in each workout. The calculation uses the Epley formula:
 
 ```text
-100 kg × 8 repetitions @ RIR 1
+estimated 1RM = weight × (1 + repetitions / 30)
 ```
 
-because the same performance was achieved with more repetitions still available in reserve.
+This value is an estimate intended for progress comparison, not a guaranteed maximal lift.
 
----
+### Progress Summary
 
-### Pagination
+`GET /api/progress/summary` returns:
 
-Workout history supports pagination using `page` and `size` query parameters.
-
-Example:
-
-```http
-GET /api/workouts?page=0&size=10
-```
-
-The response includes:
-
-- Workout content
-- Current page
-- Page size
-- Total number of elements
-- Total number of pages
-- First-page indicator
-- Last-page indicator
-
----
-
-### API Documentation
-
-The project includes:
-
-- Swagger UI
-- OpenAPI specification
-- Documented controllers
-- Documented request and response DTOs
-- JWT authentication support inside Swagger
-- Validation information
-- Example request and response schemas
-
----
-
-### Automated Testing
-
-The project contains automated tests at multiple levels.
-
-#### Service Unit Tests
-
-Service tests use:
-
-- JUnit
-- Mockito
-- Mocked repositories
-- Mocked security and supporting dependencies
-
-They verify business logic independently from the web and database layers.
-
-#### Controller Tests
-
-Controller tests use:
-
-- MockMvc
-- Spring MVC test support
-- Mocked services
-- JSON request and response assertions
-- HTTP status assertions
-- Validation and exception-response testing
-
-They verify request mapping, serialization, validation, and HTTP responses.
-
-#### Integration Tests
-
-Integration tests use:
-
-- `@SpringBootTest`
-- `@AutoConfigureMockMvc`
-- A dedicated MySQL test database
-- Real controllers
-- Real services
-- Real repositories
-- Real JPA entity relationships
-
-Integration tests cover important end-to-end flows such as:
-
-- User registration
-- User login
-- Token refresh
-- Logout and token invalidation
-- Exercise-definition retrieval
-- Workout creation
-- Workout persistence
-- Workout retrieval
-- Workout updates
-- Workout deletion
-- Unauthorized access
-- Resource ownership protection
-
----
-
-### Docker and Continuous Integration
-
-- Dockerized Spring Boot application
-- MySQL Docker service
-- Docker Compose configuration
-- Environment-based configuration
-- GitHub Actions workflow
-- Automated compilation and testing
-- Dedicated MySQL service container during CI
-- Maven `clean verify` execution
-- Workflow execution on pushes and pull requests targeting `main`
-
----
-
-## Tech Stack
-
-### Backend
-
-- Java 26
-- Spring Boot
-- Spring Web MVC
-- Spring Security
-- Spring Data JPA
-- Hibernate
-- Jakarta Bean Validation
-
-### Authentication
-
-- JSON Web Tokens
-- JWT access tokens
-- Refresh tokens
-- Refresh-token rotation
-- BCrypt password encoding
-
-### Database
-
-- MySQL 8
-- Spring Data repositories
-- JPA entity relationships
-
-### Documentation
-
-- Swagger UI
-- OpenAPI
-
-### Testing
-
-- JUnit
-- Mockito
-- MockMvc
-- Spring Boot Test
-- Integration testing with MySQL
-- Maven Surefire
-
-### DevOps
-
-- Maven Wrapper
-- Docker
-- Docker Compose
-- GitHub Actions
-
----
-
-## Architecture
-
-The project follows a layered architecture:
-
-```text
-Controller
-    ↓
-Service
-    ↓
-Repository
-    ↓
-Database
-```
-
-### Controller Layer
-
-Responsible for:
-
-- Receiving HTTP requests
-- Validating request data
-- Calling the appropriate service
-- Returning HTTP responses
-- Mapping exceptions to consistent API responses
-
-### Service Layer
-
-Responsible for:
-
-- Business logic
-- Authentication logic
-- Refresh-token management
-- Resource ownership validation
-- Entity creation and updates
-- DTO mapping
-- Workout calculations
-- Personal-record selection
-
-### Repository Layer
-
-Responsible for:
-
-- Database access
-- Entity persistence
-- User-specific queries
-- Workout and exercise lookup
-- Refresh-token persistence
-- Progress-related queries
-
-### DTO Layer
-
-Request and response DTOs are used to avoid exposing persistence entities directly through the API.
-
----
-
-## Domain Model
-
-### User
-
-Represents an application account.
-
-A user can own multiple workouts and can have an associated refresh token.
-
-### ExerciseDefinition
-
-Represents a reusable exercise, such as Bench Press, Squat, or Deadlift.
-
-### Workout
-
-Represents a workout created by a specific user.
-
-A workout contains:
-
-- A name
-- A date
-- A list of workout exercises
-- An owner
-
-### WorkoutExercise
-
-Represents an exercise performed inside a workout.
-
-It contains:
-
-- An exercise definition
-- An exercise number
-- A list of sets
-- A reference to its workout
-
-### ExerciseSet
-
-Represents a performed set.
-
-It contains:
-
-- Set number
-- Weight
-- Repetitions
-- RIR
-- A reference to its workout exercise
-
-### RefreshToken
-
-Represents a refresh token used to obtain a new access token.
-
-Refresh tokens are persisted and invalidated when they are rotated or used during logout.
-
----
-
-## API Endpoints
-
-All protected endpoints require:
-
-```http
-Authorization: Bearer <access-token>
-```
-
-### Authentication
-
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/auth/register` | Register a new user |
-| POST | `/api/auth/login` | Authenticate a user and return tokens |
-| POST | `/api/auth/refresh` | Rotate the refresh token and return new tokens |
-| POST | `/api/auth/logout` | Invalidate the supplied refresh token |
-
----
-
-### Exercise Definitions
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/exercises` | Retrieve all exercise definitions |
-| GET | `/api/exercises/{id}` | Retrieve an exercise definition by ID |
-| POST | `/api/exercises` | Create a new exercise definition |
-| PUT | `/api/exercises/{id}` | Update an exercise definition |
-
----
-
-### Workouts
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/workouts?page=0&size=10` | Retrieve paginated workouts for the current user |
-| GET | `/api/workouts/{id}` | Retrieve a workout by ID |
-| POST | `/api/workouts` | Create a workout |
-| PATCH | `/api/workouts/{id}` | Update workout metadata |
-| PUT | `/api/workouts/{id}` | Replace an entire workout |
-| DELETE | `/api/workouts/{id}` | Delete a workout |
-
----
-
-### Workout Exercises
-
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/workouts/{workoutId}/exercises` | Add an exercise to a workout |
-| PATCH | `/api/workouts/{workoutId}/exercises/{exerciseNumber}` | Change the exercise definition |
-| DELETE | `/api/workouts/{workoutId}/exercises/{exerciseNumber}` | Delete and renumber an exercise |
-
----
-
-### Exercise Sets
-
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/workouts/{workoutId}/exercises/{exerciseNumber}/sets` | Add a set |
-| PATCH | `/api/workouts/{workoutId}/exercises/{exerciseNumber}/sets/{setNumber}` | Partially update a set |
-| DELETE | `/api/workouts/{workoutId}/exercises/{exerciseNumber}/sets/{setNumber}` | Delete and renumber a set |
-
----
-
-### Progress
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/progress/workouts/{workoutId}/volume` | Calculate the total volume of a workout |
-| GET | `/api/progress/weekly-volume` | Calculate training volume for the last seven days |
-| GET | `/api/progress/monthly-volume` | Calculate training volume for the last month |
-| GET | `/api/progress/exercises/{exerciseDefinitionId}/personal-record` | Retrieve the personal record for an exercise |
-
----
-
-## Authentication Flow
-
-### Registration
-
-1. The client sends a username, email, and password.
-2. The password is encoded using BCrypt.
-3. The user is saved in MySQL.
-4. The API returns an access token and refresh token.
-
-### Login
-
-1. The client sends valid credentials.
-2. Spring Security authenticates the user.
-3. The API returns an access token and refresh token.
-4. The refresh token is persisted in the database.
-
-### Accessing Protected Endpoints
-
-The access token is included in the request:
-
-```http
-Authorization: Bearer <access-token>
-```
-
-The authenticated username is extracted from the Spring Security context.
-
-### Refresh-Token Rotation
-
-1. The client sends the current refresh token.
-2. The API verifies that the token exists and is valid.
-3. The old refresh token is invalidated.
-4. A new refresh token is generated and persisted.
-5. The API returns a new access token and refresh token.
-
-This prevents the same refresh token from being reused indefinitely.
-
-### Logout
-
-1. The client sends its refresh token.
-2. The API invalidates the token.
-3. The invalidated token can no longer be used to obtain new access tokens.
-
-### Resource Ownership
-
-Workout ownership is verified using:
-
-```text
-workout ID + authenticated username
-```
-
-This prevents users from reading, modifying, or deleting workouts belonging to another account.
-
----
+- Total number of workouts
+- Distinct training days during the last 7 days
+- Distinct training days during the last 30 days
+- Total number of sets during the last 7 days
+- Date of the latest workout
+- Most-trained exercise during the last 30 days, measured by number of sets
 
 ## Request Examples
 
@@ -569,7 +302,7 @@ Content-Type: application/json
 {
   "username": "cosmin",
   "email": "cosmin@example.com",
-  "password": "password123"
+  "password": "strongPassword123"
 }
 ```
 
@@ -577,78 +310,10 @@ Example response:
 
 ```json
 {
-  "accessToken": "<access-token>",
+  "accessToken": "<jwt-access-token>",
   "refreshToken": "<refresh-token>"
 }
 ```
-
----
-
-### Login
-
-```http
-POST /api/auth/login
-Content-Type: application/json
-```
-
-```json
-{
-  "username": "cosmin",
-  "password": "password123"
-}
-```
-
-Example response:
-
-```json
-{
-  "accessToken": "<access-token>",
-  "refreshToken": "<refresh-token>"
-}
-```
-
----
-
-### Refresh Tokens
-
-```http
-POST /api/auth/refresh
-Content-Type: application/json
-```
-
-```json
-{
-  "refreshToken": "<current-refresh-token>"
-}
-```
-
-Example response:
-
-```json
-{
-  "accessToken": "<new-access-token>",
-  "refreshToken": "<new-refresh-token>"
-}
-```
-
-The previous refresh token is invalidated after a successful refresh.
-
----
-
-### Logout
-
-```http
-POST /api/auth/logout
-Content-Type: application/json
-```
-
-```json
-{
-  "refreshToken": "<refresh-token>"
-}
-```
-
----
 
 ### Create an Exercise Definition
 
@@ -660,12 +325,10 @@ Content-Type: application/json
 
 ```json
 {
-  "name": "Bench Press",
+  "exerciseName": "Bench Press",
   "muscleGroup": "CHEST"
 }
 ```
-
----
 
 ### Create a Workout
 
@@ -678,18 +341,18 @@ Content-Type: application/json
 ```json
 {
   "workoutName": "Push Day",
-  "date": "2026-07-15",
+  "date": "2026-07-21",
   "exerciseRequests": [
     {
       "exerciseDefinitionId": 1,
       "setRequests": [
         {
-          "weight": 60.0,
-          "reps": 10,
+          "weight": 100.0,
+          "reps": 5,
           "rir": 2
         },
         {
-          "weight": 70.0,
+          "weight": 95.0,
           "reps": 8,
           "rir": 1
         }
@@ -698,190 +361,79 @@ Content-Type: application/json
   ]
 }
 ```
-
-Example response:
-
-```json
-{
-  "id": 1,
-  "workoutName": "Push Day",
-  "date": "2026-07-15",
-  "exerciseResponses": [
-    {
-      "id": 1,
-      "exerciseNumber": 1,
-      "exerciseName": "Bench Press",
-      "setResponses": [
-        {
-          "id": 1,
-          "setNumber": 1,
-          "weight": 60.0,
-          "reps": 10,
-          "rir": 2
-        },
-        {
-          "id": 2,
-          "setNumber": 2,
-          "weight": 70.0,
-          "reps": 8,
-          "rir": 1
-        }
-      ]
-    }
-  ]
-}
-```
-
----
-
-### Update Workout Metadata
-
-```http
-PATCH /api/workouts/1
-Authorization: Bearer <access-token>
-Content-Type: application/json
-```
-
-```json
-{
-  "workoutName": "Heavy Push Day",
-  "date": "2026-07-16"
-}
-```
-
-Only the supplied metadata fields are updated.
-
----
-
-### Replace an Entire Workout
-
-```http
-PUT /api/workouts/1
-Authorization: Bearer <access-token>
-Content-Type: application/json
-```
-
-```json
-{
-  "workoutName": "Pull Day",
-  "date": "2026-07-17",
-  "exerciseRequests": [
-    {
-      "exerciseDefinitionId": 2,
-      "setRequests": [
-        {
-          "weight": 80.0,
-          "reps": 8,
-          "rir": 2
-        }
-      ]
-    }
-  ]
-}
-```
-
----
-
-### Add an Exercise
-
-```http
-POST /api/workouts/1/exercises
-Authorization: Bearer <access-token>
-Content-Type: application/json
-```
-
-```json
-{
-  "exerciseDefinitionId": 2,
-  "setRequests": [
-    {
-      "weight": 50.0,
-      "reps": 12,
-      "rir": 2
-    },
-    {
-      "weight": 55.0,
-      "reps": 10,
-      "rir": 1
-    }
-  ]
-}
-```
-
-The new exercise receives the next available `exerciseNumber`.
-
----
-
-### Add a Set
-
-```http
-POST /api/workouts/1/exercises/1/sets
-Authorization: Bearer <access-token>
-Content-Type: application/json
-```
-
-```json
-{
-  "weight": 75.0,
-  "reps": 8,
-  "rir": 1
-}
-```
-
-The new set receives the next available `setNumber`.
-
----
 
 ### Partially Update a Set
 
+Only the supplied fields are changed.
+
 ```http
-PATCH /api/workouts/1/exercises/1/sets/1
+PATCH /api/workouts/10/exercises/1/sets/2
 Authorization: Bearer <access-token>
 Content-Type: application/json
 ```
 
-Update only repetitions:
-
 ```json
 {
-  "reps": 12
-}
-```
-
-Update multiple fields:
-
-```json
-{
-  "weight": 75.0,
+  "reps": 9,
   "rir": 0
 }
 ```
 
-Fields that are not included remain unchanged.
-
----
-
-### Retrieve Paginated Workouts
+### Duplicate a Workout
 
 ```http
-GET /api/workouts?page=0&size=10
+POST /api/workouts/10/duplicate
 Authorization: Bearer <access-token>
+Content-Type: application/json
 ```
 
-Example response:
+```json
+{
+  "workoutName": "Push Day - Week 2",
+  "date": "2026-07-28"
+}
+```
+
+The new workout receives copies of the original exercises and sets. The original workout remains unchanged.
+
+### Progress Summary Response
+
+```json
+{
+  "totalWorkouts": 42,
+  "trainingDaysLast7Days": 4,
+  "trainingDaysLast30Days": 15,
+  "totalSetsLast7Days": 58,
+  "lastWorkoutDate": "2026-07-21",
+  "mostTrainedExerciseLast30Days": "Bench Press"
+}
+```
+
+### Exercise History Response
 
 ```json
 {
   "content": [
     {
-      "id": 1,
-      "workoutName": "Push Day",
-      "date": "2026-07-15",
-      "exerciseResponses": []
+      "workoutId": 10,
+      "workoutExerciseId": 31,
+      "exerciseNumber": 1,
+      "exerciseName": "Bench Press",
+      "estimatedOneRepMax": 116.67,
+      "workoutDate": "2026-07-21",
+      "setResponses": [
+        {
+          "id": 91,
+          "setNumber": 1,
+          "weight": 100.0,
+          "reps": 5,
+          "rir": 2
+        }
+      ]
     }
   ],
   "page": 0,
-  "size": 10,
+  "size": 20,
   "totalElements": 1,
   "totalPages": 1,
   "first": true,
@@ -889,180 +441,37 @@ Example response:
 }
 ```
 
-When the authenticated user has no workouts, the API returns `200 OK` with an empty content list.
-
----
-
-## Progress Tracking
-
-### Workout Volume
-
-```http
-GET /api/progress/workouts/1/volume
-Authorization: Bearer <access-token>
-```
-
-Example response:
-
-```json
-{
-  "totalVolume": 2270.0
-}
-```
-
----
-
-### Weekly Volume
-
-```http
-GET /api/progress/weekly-volume
-Authorization: Bearer <access-token>
-```
-
-Example response:
-
-```json
-{
-  "startDate": "2026-07-10",
-  "endDate": "2026-07-16",
-  "totalVolume": 7450.0
-}
-```
-
----
-
-### Monthly Volume
-
-```http
-GET /api/progress/monthly-volume
-Authorization: Bearer <access-token>
-```
-
-Example response:
-
-```json
-{
-  "startDate": "2026-06-16",
-  "endDate": "2026-07-16",
-  "totalVolume": 28450.0
-}
-```
-
----
-
-### Personal Record
-
-```http
-GET /api/progress/exercises/1/personal-record
-Authorization: Bearer <access-token>
-```
-
-Example response:
-
-```json
-{
-  "exerciseDefinitionId": 1,
-  "exerciseName": "Bench Press",
-  "weight": 100.0,
-  "reps": 6,
-  "rir": 2,
-  "workoutDate": "2026-07-15"
-}
-```
-
-The personal record belongs only to the authenticated user.
-
----
-
 ## Validation and Error Handling
 
-The API uses Jakarta Bean Validation on request DTOs and path parameters.
+The API validates:
 
-Examples of validation rules:
+- Usernames, email addresses, and passwords
+- Exercise names and muscle groups
+- Workout names and dates
+- Exercise-definition IDs
+- Weight, repetitions, and RIR values
+- Positive path variables
+- Page index and page size
+- Start and end date order
+- Non-empty workout exercise and set collections
 
-- Usernames must not be blank
-- Emails must have a valid format
-- Passwords must satisfy the configured constraints
-- IDs must be positive
-- Workout names must not be blank
-- Workout dates must not be null
-- Exercise-definition IDs must not be null
-- Exercise and set collections must contain valid elements
-- Weight must be positive
-- Repetitions must be positive
-- RIR must be within the accepted range
+Custom exceptions are translated by a global exception handler into appropriate responses such as:
 
-Invalid requests return an appropriate HTTP status code.
+- `400 Bad Request` for invalid input or date ranges
+- `401 Unauthorized` for invalid credentials, tokens, or authentication
+- `404 Not Found` for missing workouts, exercises, sets, or records
+- `409 Conflict` for duplicate accounts or exercise names
 
-### Error Status Codes
+Example business-error response:
 
-| Error Case | Status Code |
-|---|---|
-| Invalid request body | `400 Bad Request` |
-| Invalid path parameter | `400 Bad Request` |
-| Invalid refresh token | `400 Bad Request` |
-| Invalid logout token | `400 Bad Request` |
-| Invalid login credentials | `401 Unauthorized` |
-| Missing or invalid JWT | `401 Unauthorized` |
-| User not found | `404 Not Found` |
-| Workout not found | `404 Not Found` |
-| Workout exercise not found | `404 Not Found` |
-| Exercise set not found | `404 Not Found` |
-| Exercise definition not found | `404 Not Found` |
-| Personal record not found | `404 Not Found` |
-| Duplicate username or email | `409 Conflict` |
-| Duplicate exercise name | `409 Conflict` |
-
-A global exception handler provides consistent API error responses.
-
----
-
-## Environment Variables
-
-Sensitive information is loaded from environment variables instead of being hardcoded.
-
-Required variables:
-
-```env
-DB_URL=jdbc:mysql://mysql:3306/fitness_tracker_db
-DB_USERNAME=root
-DB_PASSWORD=your_database_password
-JWT_SECRET=your_very_long_jwt_secret
+```json
+{
+  "error": "Not found",
+  "message": "Workout not found"
+}
 ```
 
-The application imports an optional local `.env` file:
-
-```properties
-spring.config.import=optional:file:./.env[.properties]
-```
-
-Datasource and JWT configuration:
-
-```properties
-spring.datasource.url=${DB_URL}
-spring.datasource.username=${DB_USERNAME}
-spring.datasource.password=${DB_PASSWORD}
-jwt.secret=${JWT_SECRET}
-```
-
-The `.env` file must not be committed.
-
-Add it to `.gitignore`:
-
-```gitignore
-.env
-```
-
-An `.env.example` file can be committed safely:
-
-```env
-DB_URL=jdbc:mysql://mysql:3306/fitness_tracker_db
-DB_USERNAME=root
-DB_PASSWORD=replace_with_your_password
-JWT_SECRET=replace_with_a_long_random_secret
-```
-
----
+Validation errors are returned as a map of field names and validation messages.
 
 ## Running with Docker
 
@@ -1071,72 +480,34 @@ JWT_SECRET=replace_with_a_long_random_secret
 - Docker
 - Docker Compose
 
-### 1. Clone the repository
+### Start the Application
 
 ```bash
 git clone https://github.com/cosmiinn75/fitness-tracker-api.git
 cd fitness-tracker-api
+cp .env.example .env
 ```
 
-### 2. Create the `.env` file
-
-Create a file named `.env` in the project root:
-
-```env
-DB_URL=jdbc:mysql://mysql:3306/fitness_tracker_db
-DB_USERNAME=root
-DB_PASSWORD=root
-JWT_SECRET=replace_with_a_long_random_secret
-```
-
-Project structure:
-
-```text
-fitness-tracker-api/
-├── .env
-├── docker-compose.yml
-├── Dockerfile
-├── pom.xml
-└── src/
-```
-
-### 3. Build and start the containers
+Update `.env` with your own database password and a long JWT secret, then run:
 
 ```bash
 docker compose up --build
 ```
 
-Run the containers in the background:
+Available services:
 
-```bash
-docker compose up --build -d
-```
+- API: `http://localhost:8080`
+- MySQL from the host: `localhost:3307`
+- Swagger UI: `http://localhost:8080/swagger-ui/index.html`
+- Health check: `http://localhost:8080/actuator/health`
 
-### 4. Stop the containers
+Stop the containers with:
 
 ```bash
 docker compose down
 ```
 
-Remove containers and database volumes:
-
-```bash
-docker compose down -v
-```
-
-After startup, the API is available at:
-
-```text
-http://localhost:8080
-```
-
-Swagger UI is available at:
-
-```text
-http://localhost:8080/swagger-ui/index.html
-```
-
----
+The MySQL data is stored in the named Docker volume `fitness_tracker_mysql_data`.
 
 ## Running Locally
 
@@ -1144,192 +515,40 @@ http://localhost:8080/swagger-ui/index.html
 
 - Java 26
 - MySQL 8
-- Maven or Maven Wrapper
 
-### 1. Clone the repository
+Create a MySQL database named `fitness_tracker_db`, then create the environment file:
 
 ```bash
-git clone https://github.com/cosmiinn75/fitness-tracker-api.git
-cd fitness-tracker-api
+cp .env.example .env
 ```
 
-### 2. Create the database
-
-```sql
-CREATE DATABASE fitness_tracker_db;
-```
-
-### 3. Configure environment variables
-
-Example `.env` file:
-
-```env
-DB_URL=jdbc:mysql://127.0.0.1:3306/fitness_tracker_db
-DB_USERNAME=root
-DB_PASSWORD=your_database_password
-JWT_SECRET=your_very_long_jwt_secret
-```
-
-These values can be configured through:
-
-- A local `.env` file
-- IntelliJ run configuration
-- Operating-system environment variables
-- Terminal environment variables
-
-### 4. Run the application
-
-Linux or macOS:
+Update the values in `.env`, then start the application:
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-Windows:
+On Windows:
 
 ```powershell
-.\mvnw.cmd spring-boot:run
+mvnw.cmd spring-boot:run
 ```
 
-The API starts at:
+The API starts on `http://localhost:8080`.
 
-```text
-http://localhost:8080
-```
+## Environment Variables
 
----
+| Variable | Required | Example | Description |
+| --- | --- | --- | --- |
+| `DB_URL` | Yes | `jdbc:mysql://localhost:3306/fitness_tracker_db` | JDBC database URL |
+| `DB_USERNAME` | Yes | `root` | Database username |
+| `DB_PASSWORD` | Yes | `your_local_password` | Database password |
+| `JWT_SECRET` | Yes | A long random value | Secret used to sign JWTs |
+| `SPRING_JPA_HIBERNATE_DDL_AUTO` | No | `update` | Overrides the Hibernate schema strategy |
 
-## Running Tests
+Do not commit the real `.env` file or production secrets.
 
-### Test Database
-
-Integration tests use a dedicated MySQL database.
-
-Create it locally:
-
-```sql
-CREATE DATABASE fitness_tracker_test;
-```
-
-The test profile is configured in:
-
-```text
-src/test/resources/application-test.properties
-```
-
-Example configuration:
-
-```properties
-spring.datasource.url=jdbc:mysql://127.0.0.1:3306/fitness_tracker_test
-spring.datasource.username=${SPRING_DATASOURCE_USERNAME:root}
-spring.datasource.password=${SPRING_DATASOURCE_PASSWORD:root}
-
-spring.jpa.hibernate.ddl-auto=create-drop
-spring.jpa.show-sql=true
-```
-
-The integration-test classes activate the test profile using:
-
-```java
-@ActiveProfiles("test")
-```
-
-### Run the Complete Test Suite
-
-Linux or macOS:
-
-```bash
-./mvnw clean verify
-```
-
-Windows:
-
-```powershell
-.\mvnw.cmd clean verify
-```
-
-Alternatively:
-
-```bash
-mvn clean verify
-```
-
-### Run a Single Test Class
-
-Windows:
-
-```powershell
-.\mvnw.cmd "-Dtest=AuthIntegrationTest" test
-```
-
-Linux or macOS:
-
-```bash
-./mvnw -Dtest=AuthIntegrationTest test
-```
-
-### Run a Single Test Method
-
-Windows:
-
-```powershell
-.\mvnw.cmd "-Dtest=AuthIntegrationTest#register_ShouldReturnTokens" test
-```
-
-The project includes:
-
-- Service-layer unit tests
-- Controller-layer tests
-- MockMvc tests
-- Integration tests
-- Validation tests
-- Error-response tests
-- Authentication tests
-- Refresh-token tests
-- Workout tests
-- Exercise-definition tests
-- Progress tests
-- Security and ownership tests
-
----
-
-## Continuous Integration
-
-The project uses GitHub Actions for continuous integration.
-
-The workflow runs automatically when:
-
-- Code is pushed to `main`
-- A pull request targets `main`
-- The workflow is started manually
-
-The CI pipeline:
-
-1. Checks out the repository
-2. Starts a MySQL 8 service container
-3. Creates a dedicated test database
-4. Configures Java 26
-5. Restores the Maven dependency cache
-6. Makes the Maven Wrapper executable
-7. Runs the complete test suite
-
-```bash
-./mvnw --batch-mode clean verify
-```
-
-The CI environment provides database credentials and the JWT secret through environment variables.
-
-The build fails when:
-
-- The project does not compile
-- A unit test fails
-- A controller test fails
-- An integration test fails
-- The Spring application context cannot start
-
----
-
-## Swagger and OpenAPI
+## Swagger and Health Check
 
 Swagger UI is available at:
 
@@ -1337,200 +556,150 @@ Swagger UI is available at:
 http://localhost:8080/swagger-ui/index.html
 ```
 
-The raw OpenAPI specification is available at:
+The OpenAPI specification is available at:
 
 ```text
 http://localhost:8080/v3/api-docs
 ```
 
-### Using JWT in Swagger
+To call protected endpoints from Swagger:
 
 1. Register or log in.
 2. Copy the returned access token.
-3. Open Swagger UI.
-4. Click the **Authorize** button.
-5. Enter the access token.
-6. Execute protected requests.
+3. Select **Authorize** in Swagger UI.
+4. Enter the token and call a protected endpoint.
 
-Swagger sends:
+The public Actuator health endpoint is available at:
 
-```http
-Authorization: Bearer <access-token>
+```text
+http://localhost:8080/actuator/health
 ```
 
----
+Example response:
+
+```json
+{
+  "status": "UP"
+}
+```
+
+## Testing
+
+Run the complete test suite with:
+
+```bash
+./mvnw clean verify
+```
+
+On Windows:
+
+```powershell
+mvnw.cmd clean verify
+```
+
+The current project contains **70 automated test methods** across:
+
+- Service unit tests with JUnit and Mockito
+- Controller tests with MockMvc
+- Integration tests using Spring Boot, real repositories, and MySQL
+- Authentication and refresh-token tests
+- Resource-ownership tests
+- Validation and exception-response tests
+- Workout duplication tests
+- Exercise-history and progress-summary tests
+
+## Continuous Integration
+
+The GitHub Actions workflow runs on every push and pull request targeting `main`.
+
+The pipeline:
+
+1. Checks out the repository.
+2. Starts a MySQL 8 service container.
+3. Configures Java 26 and the Maven dependency cache.
+4. Builds the project.
+5. Executes the complete test suite with `./mvnw clean verify`.
+
+The build status is shown by the badge at the top of this README.
 
 ## Project Structure
 
 ```text
-src
-├── main
-│   ├── java
-│   │   └── com.cosmin.fitness_tracker_api
-│   │       ├── Controller
-│   │       ├── DTO
-│   │       ├── Exception
-│   │       ├── Model
-│   │       ├── Repository
-│   │       ├── Security
-│   │       └── Service
-│   │
-│   └── resources
-│       └── application.properties
-│
-└── test
-    ├── java
-    │   └── com.cosmin.fitness_tracker_api
-    │       ├── ControllerTest
-    │       ├── IntegrationTest
-    │       └── ServiceTest
-    │
-    └── resources
-        └── application-test.properties
-```
-
-Additional project files:
-
-```text
 fitness-tracker-api/
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-├── .env
-├── .env.example
-├── .gitignore
-├── docker-compose.yml
-├── Dockerfile
-├── mvnw
-├── mvnw.cmd
-├── pom.xml
+├── .github/workflows/        # GitHub Actions CI
+├── src/main/java/com/cosmin/fitness_tracker_api/
+│   ├── Controller/           # REST controllers
+│   ├── DTO/                  # Request and response models
+│   ├── Enum/                 # Muscle-group values
+│   ├── Exception/            # Custom exceptions and global handling
+│   ├── Model/                # JPA entities
+│   ├── Repository/           # Spring Data JPA repositories
+│   ├── Security/             # JWT, Spring Security, and OpenAPI config
+│   └── Service/              # Business logic
+├── src/main/resources/       # Application configuration
+├── src/test/java/            # Unit, controller, and integration tests
+├── src/test/resources/       # Test configuration
+├── .env.example              # Environment-variable template
+├── docker-compose.yml        # API and MySQL services
+├── Dockerfile                # Multi-stage application image
+├── pom.xml                   # Maven configuration
 └── README.md
 ```
 
----
+## Security
 
-## Security Considerations
+- Passwords are stored using BCrypt hashes.
+- The application does not use HTTP sessions.
+- Access tokens are short-lived and signed using `HS256`.
+- Refresh tokens are persisted, validated, rotated, and revocable.
+- CSRF protection is disabled because the API uses stateless bearer-token authentication.
+- Database credentials and JWT secrets are externalized.
+- Workout and progress queries include the authenticated username.
+- A user cannot retrieve or modify another user's workouts through their IDs.
+- Authentication, Swagger/OpenAPI, and `/actuator/health` are the only public endpoint groups.
 
-- Passwords are encoded before persistence
-- JWT secrets are loaded from environment variables
-- Database credentials are excluded from source control
-- Protected endpoints require authentication
-- Access tokens are short-lived
-- Refresh tokens are persisted
-- Refresh tokens are rotated after use
-- Logout invalidates the supplied refresh token
-- Resource ownership is verified using the authenticated username
-- Users cannot access workouts belonging to other accounts
-- Unauthorized resource access does not expose another user's data
-- Authentication endpoints are publicly accessible
-- Swagger and OpenAPI endpoints can be configured as public
-- The application uses stateless authentication for protected requests
-- Development, test, CI, and production secrets should be different
-
-The JWT secret used outside development should be long, random, and securely stored.
-
----
+Production environments should use a long random JWT secret, dedicated credentials, HTTPS, and separate configuration from development and CI.
 
 ## Future Improvements
 
-Possible future improvements include:
-
-- Deploy the API to a cloud platform
-- Add Testcontainers for isolated integration-test databases
-- Add workout filtering by date and name
-- Add sorting options for workout history
-- Add exercise progress history
-- Add estimated one-repetition maximum calculations
-- Add chart-ready progress endpoints
-- Add user profile management
-- Add password reset functionality
-- Add email verification
-- Add role-based authorization
-- Add API rate limiting
-- Add structured application logging
-- Add health and metrics endpoints with Spring Boot Actuator
-- Add database migrations using Flyway or Liquibase
-- Add OAuth2 login support
-
----
+- Deploy the API to a public cloud platform
+- Replace automatic schema updates with Flyway database migrations
+- Use Testcontainers for isolated integration-test databases
+- Optimize nested workout and summary queries to reduce potential N+1 queries
+- Add configurable sorting to workout and exercise history
+- Add user profile and password-management endpoints
+- Add password reset and email verification
+- Add rate limiting for authentication endpoints
+- Add structured logging and additional Actuator metrics
+- Add API versioning
 
 ## What I Learned
 
 While building this project, I practiced:
 
-- Designing REST APIs with Spring Boot
-- Structuring a backend using controller, service, and repository layers
-- Separating persistence entities from request and response DTOs
-- Implementing JWT authentication
-- Implementing access-token and refresh-token flows
-- Implementing refresh-token rotation
-- Invalidating refresh tokens during logout
-- Protecting endpoints using Spring Security
-- Extracting authenticated users from the security context
-- Restricting resources to their owners
-- Working with JPA and Hibernate relationships
-- Managing nested resources
-- Maintaining both sides of entity relationships
-- Implementing partial updates with `PATCH`
-- Replacing complete resources with `PUT`
-- Renumbering ordered resources after deletion
-- Implementing pagination
-- Calculating workout volume
-- Calculating weekly and monthly progress
-- Selecting personal records using weight, repetitions, and RIR
-- Validating request bodies and path parameters
-- Handling custom exceptions globally
-- Writing service unit tests with JUnit and Mockito
-- Testing controllers with MockMvc
-- Writing integration tests with Spring Boot and MySQL
-- Testing complete controller-service-repository flows
-- Testing authentication and resource ownership
-- Running tests using Maven
-- Containerizing an application with Docker
-- Connecting Spring Boot to MySQL using Docker Compose
-- Managing configuration through environment variables
-- Creating a GitHub Actions continuous integration pipeline
-- Running a MySQL service container inside CI
-- Generating interactive API documentation with Swagger and OpenAPI
-- Configuring JWT authentication inside Swagger UI
-- Keeping credentials and secrets outside source control
-
----
+- Designing and documenting REST APIs with Spring Boot
+- Separating controllers, services, repositories, entities, and DTOs
+- Modeling nested JPA relationships
+- Implementing JWT authentication and Spring Security filters
+- Implementing persistent refresh tokens, rotation, expiration, and revocation
+- Protecting user-owned resources
+- Using `POST`, `GET`, `PUT`, `PATCH`, and `DELETE` correctly
+- Implementing pagination, filtering, and date-range validation
+- Maintaining ordered nested resources after deletion
+- Duplicating aggregate data with child entities
+- Calculating workout volume, personal records, activity summaries, and estimated 1RM
+- Building exercise-specific progress history
+- Handling validation and business exceptions globally
+- Writing unit tests with JUnit and Mockito
+- Testing REST controllers with MockMvc
+- Writing database-backed integration tests
+- Containerizing Spring Boot and MySQL with Docker Compose
+- Automating builds and tests with GitHub Actions
+- Exposing API documentation and operational health checks
 
 ## Status
 
-The core API functionality is implemented and covered by automated tests.
-
-The project currently includes:
-
-- User registration
-- User login
-- JWT access tokens
-- Refresh-token persistence
-- Refresh-token rotation
-- Logout and token invalidation
-- Workout management
-- Exercise-definition management
-- Workout-exercise management
-- Exercise-set management
-- Progress calculations
-- Personal records
-- Pagination
-- Validation
-- Global exception handling
-- Resource ownership protection
-- Swagger/OpenAPI documentation
-- Docker support
-- Docker Compose support
-- Service unit tests
-- Controller tests
-- Integration tests
-- GitHub Actions CI
-- MySQL integration inside CI
-
-The project is maintained as a Java and Spring Boot backend portfolio project.
-
----
+The core API is implemented and actively maintained as a backend portfolio project. The current `main` branch is covered by automated tests and a successful continuous-integration pipeline.
 
 ## Author
 
