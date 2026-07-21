@@ -1,5 +1,4 @@
 package com.cosmin.fitness_tracker_api.Service;
-
 import com.cosmin.fitness_tracker_api.DTO.ExerciseDefinitionRequest;
 import com.cosmin.fitness_tracker_api.DTO.ExerciseDefinitionResponse;
 import com.cosmin.fitness_tracker_api.Exception.ExerciseDefinitionNotFoundException;
@@ -8,7 +7,6 @@ import com.cosmin.fitness_tracker_api.Model.ExerciseDefinition;
 import com.cosmin.fitness_tracker_api.Repository.ExerciseDefinitionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
 
 @Service
@@ -71,6 +69,7 @@ public class ExerciseDefinitionService {
 
 
 
+
     private ExerciseDefinitionResponse toExerciseDefinitionResponse(ExerciseDefinition exerciseDefinition) {
         return new ExerciseDefinitionResponse(
                 exerciseDefinition.getId(),
@@ -78,4 +77,10 @@ public class ExerciseDefinitionService {
                 exerciseDefinition.getMuscleGroup()
         );
     }
+
+
+
+
+
+
 }

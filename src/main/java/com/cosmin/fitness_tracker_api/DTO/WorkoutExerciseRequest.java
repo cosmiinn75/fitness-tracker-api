@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Positive;
 
 import java.util.List;
 
-public record ExerciseRequest(
+public record WorkoutExerciseRequest(
 
         @Positive
         @NotNull

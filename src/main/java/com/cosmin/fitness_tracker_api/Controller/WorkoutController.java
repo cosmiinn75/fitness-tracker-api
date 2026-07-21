@@ -399,7 +399,7 @@ public class WorkoutController {
     @PostMapping("/{workoutId}/exercises")
     public WorkoutResponse addWorkoutExercise(
             @PathVariable @Positive Long workoutId,
-            @Valid @RequestBody ExerciseRequest request
+            @Valid @RequestBody WorkoutExerciseRequest request
     ) {
         return workoutService.addWorkoutExercise(
                 workoutId,

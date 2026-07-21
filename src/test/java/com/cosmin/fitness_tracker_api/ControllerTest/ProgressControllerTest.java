@@ -6,6 +6,7 @@ import com.cosmin.fitness_tracker_api.DTO.VolumeProgressResponse;
 import com.cosmin.fitness_tracker_api.DTO.WorkoutVolumeResponse;
 import com.cosmin.fitness_tracker_api.Security.JWTFilter;
 import com.cosmin.fitness_tracker_api.Service.ProgressService;
+import com.cosmin.fitness_tracker_api.Service.WorkoutService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -35,6 +36,8 @@ public class ProgressControllerTest {
     @MockitoBean
     private JWTFilter  jwtFilter;
 
+    @MockitoBean
+    private WorkoutService workoutService;
 
     @Test
     void getWeeklyVolume_ShouldReturnVolumeProgressResponse200() throws Exception {

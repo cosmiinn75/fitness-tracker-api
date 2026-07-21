@@ -1,17 +1,21 @@
 package com.cosmin.fitness_tracker_api.Controller;
 
-import com.cosmin.fitness_tracker_api.DTO.PersonalRecordResponse;
-import com.cosmin.fitness_tracker_api.DTO.VolumeProgressResponse;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutVolumeResponse;
+import com.cosmin.fitness_tracker_api.DTO.*;
 import com.cosmin.fitness_tracker_api.Service.ProgressService;
+import com.cosmin.fitness_tracker_api.Service.WorkoutService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.List;
 
 @Validated
 @RestController
@@ -24,9 +28,11 @@ import org.springframework.web.bind.annotation.*;
 public class ProgressController {
 
     private final ProgressService progressService;
+    private final WorkoutService workoutService;
 
-    public ProgressController(ProgressService progressService) {
+    public ProgressController(ProgressService progressService, WorkoutService workoutService) {
         this.progressService = progressService;
+        this.workoutService = workoutService;
     }
 
     @Operation(
@@ -124,6 +130,45 @@ public class ProgressController {
     ) {
         return progressService.getPersonalRecordByExerciseDefinitionId(
                 exerciseDefinitionId
+        );
+    }
+
+    @Operation(
+            summary = "Get exercise history",
+            description = "Returns the authenticated user's history for an exercise, optionally filtered by start and end date"
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Exercise history retrieved successfully"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid exercise ID or date range"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Missing or invalid JWT token"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Exercise definition not found"
+            )
+    })
+    @GetMapping("/exercises/{exerciseDefinitionId}/history")
+    public PagedResponse<WorkoutExerciseHistoryResponse> getHistory(
+            @PathVariable @Positive Long exerciseDefinitionId,
+            @RequestParam(name = "page" , defaultValue = "0") @Min(0) Integer page,
+            @RequestParam(name = "size" , defaultValue = "20") @Min(1) @Max(100) Integer size,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate
+    ) {
+        return workoutService.getWorkoutHistory(
+                exerciseDefinitionId,
+                startDate,
+                endDate,
+                page,
+                size
         );
     }
 }

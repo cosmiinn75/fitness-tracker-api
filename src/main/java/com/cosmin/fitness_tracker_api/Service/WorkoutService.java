@@ -6,10 +6,8 @@ import com.cosmin.fitness_tracker_api.Exception.*;
 import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.*;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.jspecify.annotations.NonNull;
+import org.springframework.data.domain.*;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -48,7 +46,7 @@ public class WorkoutService {
         workout.setUser(currentUser);
 
         Workout savedWorkout = workoutRepository.save(workout);
-        List<ExerciseResponse> exerciseResponses = createWorkoutExercisesFromRequest(savedWorkout,request.exerciseRequests());
+        List<WorkoutExerciseResponse> exerciseResponses = createWorkoutExercisesFromRequest(savedWorkout,request.exerciseRequests());
         return toWorkoutResponse(savedWorkout, exerciseResponses);
     }
 
@@ -131,7 +129,7 @@ public class WorkoutService {
 
         workoutExerciseRepository.deleteByWorkout(workout);
 
-        List<ExerciseResponse> exerciseResponses =
+        List<WorkoutExerciseResponse> exerciseResponses =
                 createWorkoutExercisesFromRequest(workout,
                                                 request.exerciseRequests());
 
@@ -287,7 +285,7 @@ public class WorkoutService {
     @Transactional
     public WorkoutResponse addWorkoutExercise(
             Long workoutId,
-            ExerciseRequest exerciseRequest
+            WorkoutExerciseRequest exerciseRequest
     ) {
         String currentUsername = getCurrentUsername();
 
@@ -385,7 +383,7 @@ public class WorkoutService {
     private WorkoutResponse toWorkoutResponse(Workout workout){
 
         List<WorkoutExercise> workoutExercises = workoutExerciseRepository.findByWorkoutOrderByExerciseNumberAsc(workout);
-        List<ExerciseResponse> exerciseResponses = new ArrayList<>();
+        List<WorkoutExerciseResponse> exerciseResponses = new ArrayList<>();
         for(WorkoutExercise workoutExercise : workoutExercises){
 
             List<SetResponse> exerciseSets = exerciseSetRepository.findByWorkoutExerciseOrderBySetNumberAsc(workoutExercise)
@@ -414,26 +412,7 @@ public class WorkoutService {
         List<WorkoutExercise> newWorkoutExercises = new ArrayList<>();
         for (WorkoutExercise workoutExercise : workoutExercises) {
 
-            WorkoutExercise newWorkoutExercise = new WorkoutExercise();
-            newWorkoutExercise.setExerciseNumber(workoutExercise.getExerciseNumber());
-            newWorkoutExercise.setWorkout(newWorkout);
-            newWorkoutExercise.setExerciseDefinition(workoutExercise.getExerciseDefinition());
-
-
-            List<ExerciseSet> exerciseSets = workoutExercise.getExerciseSets();
-            List<ExerciseSet> newExerciseSets = new ArrayList<>();
-            for (ExerciseSet exerciseSet : exerciseSets) {
-
-                ExerciseSet newExerciseSet = new ExerciseSet();
-                newExerciseSet.setWeight(exerciseSet.getWeight());
-                newExerciseSet.setReps(exerciseSet.getReps());
-                newExerciseSet.setRir(exerciseSet.getRir());
-                newExerciseSet.setSetNumber(exerciseSet.getSetNumber());
-                newExerciseSet.setWorkoutExercise(newWorkoutExercise);
-
-                newExerciseSets.add(newExerciseSet);
-            }
-            newWorkoutExercise.setExerciseSets(newExerciseSets);
+            WorkoutExercise newWorkoutExercise = getWorkoutExercise(workoutExercise, newWorkout);
 
             newWorkoutExercises.add(newWorkoutExercise);
 
@@ -447,8 +426,46 @@ public class WorkoutService {
     }
 
 
+
+    @Transactional(readOnly = true)
+    public PagedResponse<WorkoutExerciseHistoryResponse> getWorkoutHistory(Long exerciseDefinitionId,LocalDate startDate, LocalDate endDate,Integer page , Integer pageSize) {
+        String username = getCurrentUsername();
+
+        Pageable pageable = PageRequest.of(page,pageSize);
+        if(startDate != null && endDate != null) {
+            if (startDate.isAfter(endDate)) {
+                throw new InvalidDateRangeException("Start date cannot be after end date");
+
+            }
+        }
+
+        exerciseDefinitionRepository.findById(exerciseDefinitionId)
+                .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Exercise definition not found"));
+
+        Page<WorkoutExerciseHistoryResponse> workoutExerciseHistoryResponses = workoutExerciseRepository.findHistoryByExerciseDefinitionIdAndWorkoutDate(
+                exerciseDefinitionId,username, startDate, endDate,pageable
+        )
+                .map(
+                        workoutExercise -> {
+                            List<SetResponse> setResponses = workoutExercise.getExerciseSets()
+                                    .stream()
+                                    .map(this::toSetResponse)
+                                    .toList();
+
+                                    return toExerciseHistoryResponse(workoutExercise, setResponses);
+
+                        }
+                );
+
+
+        return PagedResponse.from(workoutExerciseHistoryResponses);
+
+    }
+
+
+
     private WorkoutResponse toWorkoutResponse(Workout workout,
-                                              List<ExerciseResponse> exerciseResponses) {
+                                              List<WorkoutExerciseResponse> exerciseResponses) {
         return new WorkoutResponse(
                 workout.getId(),
                 workout.getWorkoutName(),
@@ -457,11 +474,21 @@ public class WorkoutService {
         );
     }
 
-    private ExerciseResponse toExerciseResponse(WorkoutExercise exercise,List<SetResponse> setResponses){
-        return new ExerciseResponse(
+    private WorkoutExerciseResponse toExerciseResponse(WorkoutExercise exercise, List<SetResponse> setResponses){
+        return new WorkoutExerciseResponse(
                 exercise.getId(),
                 exercise.getExerciseNumber(),
                 exercise.getExerciseDefinition().getName(),
+                setResponses
+        );
+    }
+    private WorkoutExerciseHistoryResponse toExerciseHistoryResponse(WorkoutExercise exercise, List<SetResponse> setResponses){
+        return new WorkoutExerciseHistoryResponse(
+                exercise.getWorkout().getId(),
+                exercise.getId(),
+                exercise.getExerciseNumber(),
+                exercise.getExerciseDefinition().getName(),
+                exercise.getWorkout().getDate(),
                 setResponses
         );
     }
@@ -474,13 +501,13 @@ public class WorkoutService {
                 exerciseSet.getRir()
         );
     }
-    private List<ExerciseResponse> createWorkoutExercisesFromRequest(Workout workout , List<ExerciseRequest> exerciseRequests) {
+    private List<WorkoutExerciseResponse> createWorkoutExercisesFromRequest(Workout workout , List<WorkoutExerciseRequest> exerciseRequests) {
 
-        List<ExerciseResponse> exerciseResponses = new ArrayList<>();
+        List<WorkoutExerciseResponse> exerciseResponses = new ArrayList<>();
 
         for(int i = 0 ; i < exerciseRequests.size() ; i++) {
 
-            ExerciseRequest exerciseRequest = exerciseRequests.get(i);
+            WorkoutExerciseRequest exerciseRequest = exerciseRequests.get(i);
 
 
 
@@ -524,8 +551,29 @@ public class WorkoutService {
     }
 
 
+    private static @NonNull WorkoutExercise getWorkoutExercise(WorkoutExercise workoutExercise, Workout newWorkout) {
+        WorkoutExercise newWorkoutExercise = new WorkoutExercise();
+        newWorkoutExercise.setExerciseNumber(workoutExercise.getExerciseNumber());
+        newWorkoutExercise.setWorkout(newWorkout);
+        newWorkoutExercise.setExerciseDefinition(workoutExercise.getExerciseDefinition());
 
 
+        List<ExerciseSet> exerciseSets = workoutExercise.getExerciseSets();
+        List<ExerciseSet> newExerciseSets = new ArrayList<>();
+        for (ExerciseSet exerciseSet : exerciseSets) {
+
+            ExerciseSet newExerciseSet = new ExerciseSet();
+            newExerciseSet.setWeight(exerciseSet.getWeight());
+            newExerciseSet.setReps(exerciseSet.getReps());
+            newExerciseSet.setRir(exerciseSet.getRir());
+            newExerciseSet.setSetNumber(exerciseSet.getSetNumber());
+            newExerciseSet.setWorkoutExercise(newWorkoutExercise);
+
+            newExerciseSets.add(newExerciseSet);
+        }
+        newWorkoutExercise.setExerciseSets(newExerciseSets);
+        return newWorkoutExercise;
+    }
 
 
 

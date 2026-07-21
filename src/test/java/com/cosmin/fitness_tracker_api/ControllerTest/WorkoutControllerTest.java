@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -77,7 +76,7 @@ public class WorkoutControllerTest {
     @Test
     void getWorkoutById_ShouldReturnWorkoutResponse() throws Exception {
 
-        List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
+        List<WorkoutExerciseResponse> exerciseResponseList = new ArrayList<>();
 
         WorkoutResponse workoutResponse = new WorkoutResponse(
                 1L,
@@ -120,7 +119,7 @@ public class WorkoutControllerTest {
     @Test
     void updateWorkoutMetadata_ShouldUpdateWorkoutResponse() throws Exception {
 
-        List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
+        List<WorkoutExerciseResponse> exerciseResponseList = new ArrayList<>();
 
         WorkoutResponse workoutResponse = new WorkoutResponse(
                 1L,
@@ -161,7 +160,7 @@ public class WorkoutControllerTest {
     @Test
     void updateWorkout_ShouldUpdateWorkoutResponse() throws Exception {
 
-        List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
+        List<WorkoutExerciseResponse> exerciseResponseList = new ArrayList<>();
 
         WorkoutResponse workoutResponse = new WorkoutResponse(
                 1L,
@@ -214,7 +213,7 @@ public class WorkoutControllerTest {
 
     @Test
     void createWorkout_ShouldCreateWorkoutResponse() throws Exception {
-        List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
+        List<WorkoutExerciseResponse> exerciseResponseList = new ArrayList<>();
         WorkoutResponse workoutResponse = new WorkoutResponse(
                 1L,
                 "Pull",
@@ -262,7 +261,7 @@ public class WorkoutControllerTest {
 
     @Test
     void changeWorkoutExercises_ShouldChangeWorkoutResponse() throws Exception {
-        List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
+        List<WorkoutExerciseResponse> exerciseResponseList = new ArrayList<>();
 
         WorkoutResponse workoutResponse = new WorkoutResponse(
                 1L,
@@ -299,7 +298,7 @@ public class WorkoutControllerTest {
 
     @Test
     void addSet_ShouldAddSetAndReturnWorkoutResponse() throws Exception {
-        List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
+        List<WorkoutExerciseResponse> exerciseResponseList = new ArrayList<>();
 
         WorkoutResponse workoutResponse = new WorkoutResponse(
                 1L,
@@ -337,7 +336,7 @@ public class WorkoutControllerTest {
 
     @Test
     void deleteSet_ShouldDeleteSetAndReturnWorkoutResponse() throws Exception {
-        List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
+        List<WorkoutExerciseResponse> exerciseResponseList = new ArrayList<>();
 
         WorkoutResponse workoutResponse = new WorkoutResponse(
                 1L,
@@ -364,7 +363,7 @@ public class WorkoutControllerTest {
 
     @Test
     void addWorkoutExercise_ShouldAddWorkoutExerciseAndReturnWorkoutResponse() throws Exception {
-        List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
+        List<WorkoutExerciseResponse> exerciseResponseList = new ArrayList<>();
 
         WorkoutResponse workoutResponse = new WorkoutResponse(
                 1L,
@@ -373,7 +372,7 @@ public class WorkoutControllerTest {
                 exerciseResponseList
         );
 
-        when(workoutService.addWorkoutExercise(eq(1L),any(ExerciseRequest.class))).thenReturn(workoutResponse);
+        when(workoutService.addWorkoutExercise(eq(1L),any(WorkoutExerciseRequest.class))).thenReturn(workoutResponse);
 
         mockMvc.perform(
                         post("/api/workouts/1/exercises")
@@ -401,13 +400,13 @@ public class WorkoutControllerTest {
                 .andExpect(jsonPath("$.exerciseResponses").isArray())
                 .andExpect(jsonPath("$.exerciseResponses").isEmpty());
 
-        verify(workoutService).addWorkoutExercise(eq(1L),any(ExerciseRequest.class));
+        verify(workoutService).addWorkoutExercise(eq(1L),any(WorkoutExerciseRequest.class));
     }
 
 
     @Test
     void deleteWorkoutExercise_ShouldDeleteWorkoutExerciseAndReturnWorkoutResponse() throws Exception {
-        List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
+        List<WorkoutExerciseResponse> exerciseResponseList = new ArrayList<>();
 
         WorkoutResponse workoutResponse = new WorkoutResponse(
                 1L,
@@ -435,7 +434,7 @@ public class WorkoutControllerTest {
     @Test
     void duplicateWorkout_ShouldReturnWorkoutResponse() throws Exception {
 
-        List<ExerciseResponse> exerciseResponseList = new ArrayList<>();
+        List<WorkoutExerciseResponse> exerciseResponseList = new ArrayList<>();
 
         WorkoutResponse workoutResponse = new WorkoutResponse(
                 1L,

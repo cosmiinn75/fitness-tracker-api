@@ -7,6 +7,6 @@ public record WorkoutResponse(
         Long id,
         String workoutName,
         LocalDate date,
-        List<ExerciseResponse> exerciseResponses
+        List<WorkoutExerciseResponse> exerciseResponses
 ) {
 }
