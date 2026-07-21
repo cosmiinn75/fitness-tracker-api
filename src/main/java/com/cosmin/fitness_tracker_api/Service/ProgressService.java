@@ -1,19 +1,18 @@
 package com.cosmin.fitness_tracker_api.Service;
 
-import com.cosmin.fitness_tracker_api.DTO.PersonalRecordResponse;
-import com.cosmin.fitness_tracker_api.DTO.VolumeProgressResponse;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutVolumeResponse;
-import com.cosmin.fitness_tracker_api.Exception.ExerciseDefinitionNotFoundException;
-import com.cosmin.fitness_tracker_api.Exception.PersonalRecordNotFoundException;
-import com.cosmin.fitness_tracker_api.Exception.UserNotAuthException;
-import com.cosmin.fitness_tracker_api.Exception.WorkoutNotFoundException;
+import com.cosmin.fitness_tracker_api.DTO.*;
+import com.cosmin.fitness_tracker_api.Exception.*;
 import com.cosmin.fitness_tracker_api.Model.ExerciseDefinition;
 import com.cosmin.fitness_tracker_api.Model.ExerciseSet;
 import com.cosmin.fitness_tracker_api.Model.Workout;
 import com.cosmin.fitness_tracker_api.Model.WorkoutExercise;
 import com.cosmin.fitness_tracker_api.Repository.ExerciseDefinitionRepository;
 import com.cosmin.fitness_tracker_api.Repository.ExerciseSetRepository;
+import com.cosmin.fitness_tracker_api.Repository.WorkoutExerciseRepository;
 import com.cosmin.fitness_tracker_api.Repository.WorkoutRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,12 +28,14 @@ public class ProgressService {
     private final WorkoutRepository workoutRepository;
     private final ExerciseSetRepository exerciseSetRepository;
     private final ExerciseDefinitionRepository exerciseDefinitionRepository;
+    private final WorkoutExerciseRepository workoutExerciseRepository;
 
 
-    public ProgressService(WorkoutRepository workoutRepository, ExerciseSetRepository exerciseSetRepository, ExerciseDefinitionRepository exerciseDefinitionRepository) {
+    public ProgressService(WorkoutRepository workoutRepository, ExerciseSetRepository exerciseSetRepository, ExerciseDefinitionRepository exerciseDefinitionRepository, WorkoutExerciseRepository workoutExerciseRepository) {
         this.workoutRepository = workoutRepository;
         this.exerciseSetRepository = exerciseSetRepository;
         this.exerciseDefinitionRepository = exerciseDefinitionRepository;
+        this.workoutExerciseRepository = workoutExerciseRepository;
     }
 
     public WorkoutVolumeResponse getWorkoutVolumeById(Long id) {
@@ -130,6 +131,40 @@ public class ProgressService {
                 totalVolume
         );
     }
+    @Transactional(readOnly = true)
+    public PagedResponse<WorkoutExerciseHistoryResponse> getWorkoutHistory(Long exerciseDefinitionId, LocalDate startDate, LocalDate endDate, Integer page , Integer pageSize) {
+        String username = getCurrentUsername();
+
+        Pageable pageable = PageRequest.of(page,pageSize);
+        if(startDate != null && endDate != null) {
+            if (startDate.isAfter(endDate)) {
+                throw new InvalidDateRangeException("Start date cannot be after end date");
+
+            }
+        }
+
+        exerciseDefinitionRepository.findById(exerciseDefinitionId)
+                .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Exercise definition not found"));
+
+        Page<WorkoutExerciseHistoryResponse> workoutExerciseHistoryResponses = workoutExerciseRepository.findHistoryByExerciseDefinitionIdAndWorkoutDate(
+                        exerciseDefinitionId,username, startDate, endDate,pageable
+                )
+                .map(
+                        workoutExercise -> {
+                            List<SetResponse> setResponses = workoutExercise.getExerciseSets()
+                                    .stream()
+                                    .map(this::toSetResponse)
+                                    .toList();
+
+                            return toExerciseHistoryResponse(workoutExercise, setResponses);
+
+                        }
+                );
+
+
+        return PagedResponse.from(workoutExerciseHistoryResponses);
+
+    }
 
 
 
@@ -155,5 +190,26 @@ public class ProgressService {
         }
 
         return authentication.getName();
+    }
+
+    private WorkoutExerciseHistoryResponse toExerciseHistoryResponse(WorkoutExercise exercise, List<SetResponse> setResponses){
+        return new WorkoutExerciseHistoryResponse(
+                exercise.getWorkout().getId(),
+                exercise.getId(),
+                exercise.getExerciseNumber(),
+                exercise.getExerciseDefinition().getName(),
+                exercise.getWorkout().getDate(),
+                setResponses
+        );
+    }
+
+    private SetResponse toSetResponse(ExerciseSet exerciseSet) {
+        return new SetResponse(
+                exerciseSet.getId(),
+                exerciseSet.getSetNumber(),
+                exerciseSet.getWeight(),
+                exerciseSet.getReps(),
+                exerciseSet.getRir()
+        );
     }
 }

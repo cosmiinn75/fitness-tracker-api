@@ -1,27 +1,25 @@
 package com.cosmin.fitness_tracker_api.ControllerTest;
 
 import com.cosmin.fitness_tracker_api.Controller.ProgressController;
-import com.cosmin.fitness_tracker_api.DTO.PersonalRecordResponse;
-import com.cosmin.fitness_tracker_api.DTO.VolumeProgressResponse;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutVolumeResponse;
+import com.cosmin.fitness_tracker_api.DTO.*;
 import com.cosmin.fitness_tracker_api.Security.JWTFilter;
 import com.cosmin.fitness_tracker_api.Service.ProgressService;
-import com.cosmin.fitness_tracker_api.Service.WorkoutService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.LocalDate;
+import java.util.List;
+
 import static org.mockito.Mockito.verify;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.time.LocalDate;
-
-import static org.mockito.Mockito.when;
 
 @WebMvcTest(ProgressController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -36,8 +34,6 @@ public class ProgressControllerTest {
     @MockitoBean
     private JWTFilter  jwtFilter;
 
-    @MockitoBean
-    private WorkoutService workoutService;
 
     @Test
     void getWeeklyVolume_ShouldReturnVolumeProgressResponse200() throws Exception {
@@ -131,6 +127,97 @@ public class ProgressControllerTest {
                 .andExpect(jsonPath("$.date").value(LocalDate.of(2026,5,7).toString()));
 
         verify(progressService).getPersonalRecordByExerciseDefinitionId(1L);
+    }
+
+    @Test
+    void getWorkoutHistory_ShouldReturnPagedHistoryResponse200() throws Exception {
+
+        Long exerciseDefinitionId = 1L;
+
+        LocalDate startDate = LocalDate.of(2026, 7, 10);
+        LocalDate endDate = LocalDate.of(2026, 7, 20);
+
+        SetResponse setResponse = new SetResponse(
+                1L,
+                1,
+                100.0,
+                5,
+                1
+        );
+
+        WorkoutExerciseHistoryResponse historyResponse =
+                new WorkoutExerciseHistoryResponse(
+                        10L,
+                        20L,
+                        1,
+                        "Bench Press",
+                        LocalDate.of(2026, 7, 15),
+                        List.of(setResponse)
+                );
+
+        PagedResponse<WorkoutExerciseHistoryResponse> response =
+                new PagedResponse<>(
+                        List.of(historyResponse),
+                        0,
+                        10,
+                        1,
+                        1,
+                        true,
+                        true
+                );
+
+        when(progressService.getWorkoutHistory(
+                exerciseDefinitionId,
+                startDate,
+                endDate,
+                0,
+                10
+        )).thenReturn(response);
+
+        mockMvc.perform(
+                        get("/api/progress/exercises/1/history")
+                                .param("page", "0")
+                                .param("size", "10")
+                                .param("startDate", "2026-07-10")
+                                .param("endDate", "2026-07-20")
+                )
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].workoutId").value(10))
+                .andExpect(jsonPath("$.content[0].workoutExerciseId").value(20))
+                .andExpect(jsonPath("$.content[0].exerciseNumber").value(1))
+                .andExpect(jsonPath("$.content[0].exerciseName")
+                        .value("Bench Press"))
+                .andExpect(jsonPath("$.content[0].workoutDate")
+                        .value("2026-07-15"))
+                .andExpect(jsonPath("$.content[0].setResponses.length()")
+                        .value(1))
+                .andExpect(jsonPath("$.content[0].setResponses[0].id")
+                        .value(1))
+                .andExpect(jsonPath("$.content[0].setResponses[0].setNumber")
+                        .value(1))
+                .andExpect(jsonPath("$.content[0].setResponses[0].weight")
+                        .value(100.0))
+                .andExpect(jsonPath("$.content[0].setResponses[0].reps")
+                        .value(5))
+                .andExpect(jsonPath("$.content[0].setResponses[0].rir")
+                        .value(1))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.first").value(true))
+                .andExpect(jsonPath("$.last").value(true));
+
+        verify(progressService).getWorkoutHistory(
+                exerciseDefinitionId,
+                startDate,
+                endDate,
+                0,
+                10
+        );
     }
 
 

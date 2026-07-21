@@ -1,17 +1,15 @@
 package com.cosmin.fitness_tracker_api.ServiceTest;
 
-import com.cosmin.fitness_tracker_api.DTO.PersonalRecordResponse;
-import com.cosmin.fitness_tracker_api.DTO.VolumeProgressResponse;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutVolumeResponse;
+import com.cosmin.fitness_tracker_api.DTO.*;
+import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import com.cosmin.fitness_tracker_api.Exception.ExerciseDefinitionNotFoundException;
+import com.cosmin.fitness_tracker_api.Exception.InvalidDateRangeException;
 import com.cosmin.fitness_tracker_api.Exception.PersonalRecordNotFoundException;
 import com.cosmin.fitness_tracker_api.Exception.WorkoutNotFoundException;
-import com.cosmin.fitness_tracker_api.Model.ExerciseDefinition;
-import com.cosmin.fitness_tracker_api.Model.ExerciseSet;
-import com.cosmin.fitness_tracker_api.Model.Workout;
-import com.cosmin.fitness_tracker_api.Model.WorkoutExercise;
+import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.ExerciseDefinitionRepository;
 import com.cosmin.fitness_tracker_api.Repository.ExerciseSetRepository;
+import com.cosmin.fitness_tracker_api.Repository.WorkoutExerciseRepository;
 import com.cosmin.fitness_tracker_api.Repository.WorkoutRepository;
 import com.cosmin.fitness_tracker_api.Service.ProgressService;
 import org.jspecify.annotations.NonNull;
@@ -20,11 +18,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import java.time.LocalDate;
@@ -44,6 +45,9 @@ public class ProgressServiceTest {
     private  ExerciseSetRepository exerciseSetRepository;
     @Mock
     private  ExerciseDefinitionRepository exerciseDefinitionRepository;
+
+    @Mock
+    private WorkoutExerciseRepository workoutExerciseRepository;
 
     @InjectMocks
     private ProgressService progressService;
@@ -113,15 +117,7 @@ public class ProgressServiceTest {
         return benchPress;
     }
 
-    private void mockAuthenticatedUser() {
 
-        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                "cosmin",
-                null,
-                Collections.emptyList()
-        );
-        SecurityContextHolder.getContext().setAuthentication(authToken);
-    }
 
 
     @Test
@@ -383,6 +379,182 @@ public class ProgressServiceTest {
         exerciseSet.setWorkoutExercise(workoutExercise);
 
         return exerciseSet;
+    }
+
+
+    @Test
+    void getWorkoutHistory_ShouldReturnWorkoutHistory(){
+        mockAuthenticatedUser();
+
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("cosmin");
+
+        Long exerciseDefinitionId = 1L;
+        LocalDate startDate = LocalDate.of(2026,7,15);
+        LocalDate endDate = LocalDate.of(2026,7,16);
+        int page = 0;
+        int size = 10;
+
+        Pageable pageable = PageRequest.of(page,size);
+
+        ExerciseDefinition exerciseDefinition = new ExerciseDefinition();
+        exerciseDefinition.setId(1L);
+        exerciseDefinition.setName("Bench Press");
+        exerciseDefinition.setMuscleGroup(MuscleGroup.CHEST);
+
+        Workout workout = new Workout();
+        workout.setId(1L);
+        workout.setUser(user);
+        workout.setWorkoutName("Push");
+        workout.setDate(LocalDate.of(2026, 7, 15));
+
+
+        when(exerciseDefinitionRepository.findById(exerciseDefinitionId)).thenReturn(Optional.of(exerciseDefinition));
+
+        ExerciseSet exerciseSet = new ExerciseSet();
+        exerciseSet.setId(1L);
+        exerciseSet.setSetNumber(1);
+        exerciseSet.setWeight(100.0);
+        exerciseSet.setReps(5);
+        exerciseSet.setRir(1);
+
+        WorkoutExercise workoutExercise = new WorkoutExercise();
+
+        exerciseSet.setWorkoutExercise(workoutExercise);
+
+        workoutExercise.setId(1L);
+        workoutExercise.setExerciseDefinition(exerciseDefinition);
+        workoutExercise.setWorkout(workout);
+        workoutExercise.setExerciseSets(List.of(exerciseSet));
+        workoutExercise.setExerciseNumber(1);
+
+
+        Page<WorkoutExercise> workoutExercises = new PageImpl<>(
+                List.of(workoutExercise),
+                pageable,
+                1
+        );
+
+        when(workoutExerciseRepository.findHistoryByExerciseDefinitionIdAndWorkoutDate(
+                exerciseDefinitionId,
+                "cosmin",
+                startDate,
+                endDate,
+                pageable
+        )).thenReturn(workoutExercises);
+
+        PagedResponse<WorkoutExerciseHistoryResponse> response = progressService.getWorkoutHistory(
+                exerciseDefinitionId,
+                startDate,
+                endDate,
+                page,
+                size
+        );
+
+        assertNotNull(response);
+
+        assertEquals(1, response.content().size());
+        assertEquals(0, response.page());
+        assertEquals(10, response.size());
+        assertEquals(1, response.totalElements());
+        assertEquals(1, response.totalPages());
+        assertTrue(response.first());
+        assertTrue(response.last());
+
+        WorkoutExerciseHistoryResponse historyResponse =
+                response.content().getFirst();
+
+        assertEquals(1L, historyResponse.workoutId());
+        assertEquals(1L, historyResponse.workoutExerciseId());
+        assertEquals(1, historyResponse.exerciseNumber());
+        assertEquals("Bench Press", historyResponse.exerciseName());
+        assertEquals(
+                LocalDate.of(2026, 7, 15),
+                historyResponse.workoutDate()
+        );
+
+        assertEquals(1, historyResponse.setResponses().size());
+
+        SetResponse setResponse =
+                historyResponse.setResponses().getFirst();
+
+        assertEquals(1L, setResponse.id());
+        assertEquals(1, setResponse.setNumber());
+        assertEquals(100.0, setResponse.weight());
+        assertEquals(5, setResponse.reps());
+        assertEquals(1, setResponse.rir());
+
+        verify(exerciseDefinitionRepository)
+                .findById(exerciseDefinitionId);
+
+        verify(workoutExerciseRepository)
+                .findHistoryByExerciseDefinitionIdAndWorkoutDate(
+                        exerciseDefinitionId,
+                        "cosmin",
+                        startDate,
+                        endDate,
+                        pageable
+                );
+
+    }
+
+    @Test
+    void getWorkoutHistory_ShouldThrowException_WhenDateRangeIsInvalid() {
+        mockAuthenticatedUser();
+
+        Long exerciseDefinitionId = 1L;
+
+        LocalDate startDate = LocalDate.of(2026, 7, 20);
+        LocalDate endDate = LocalDate.of(2026, 7, 10);
+
+        assertThrows(
+                InvalidDateRangeException.class,
+                () -> progressService.getWorkoutHistory(
+                        exerciseDefinitionId,
+                        startDate,
+                        endDate,
+                        0,
+                        10
+                )
+        );
+    }
+
+    @Test
+    void getWorkoutHistory_ShouldThrowException_WhenExerciseDefinitionDoesNotExist() {
+        mockAuthenticatedUser();
+
+        Long exerciseDefinitionId = 1L;
+
+        LocalDate startDate = LocalDate.of(2026, 7, 10);
+        LocalDate endDate = LocalDate.of(2026, 7, 20);
+
+        when(exerciseDefinitionRepository.findById(exerciseDefinitionId))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                ExerciseDefinitionNotFoundException.class,
+                () -> progressService.getWorkoutHistory(
+                        exerciseDefinitionId,
+                        startDate,
+                        endDate,
+                        0,
+                        10
+                )
+        );
+
+        verify(exerciseDefinitionRepository)
+                .findById(exerciseDefinitionId);
+    }
+
+    private void mockAuthenticatedUser() {
+
+        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                "cosmin",
+                null,
+                Collections.emptyList()
+        );
+        SecurityContextHolder.getContext().setAuthentication(authToken);
     }
 
 }

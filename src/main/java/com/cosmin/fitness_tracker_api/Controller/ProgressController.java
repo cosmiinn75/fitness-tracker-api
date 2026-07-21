@@ -2,7 +2,6 @@ package com.cosmin.fitness_tracker_api.Controller;
 
 import com.cosmin.fitness_tracker_api.DTO.*;
 import com.cosmin.fitness_tracker_api.Service.ProgressService;
-import com.cosmin.fitness_tracker_api.Service.WorkoutService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -15,7 +14,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.util.List;
 
 @Validated
 @RestController
@@ -28,11 +26,9 @@ import java.util.List;
 public class ProgressController {
 
     private final ProgressService progressService;
-    private final WorkoutService workoutService;
 
-    public ProgressController(ProgressService progressService, WorkoutService workoutService) {
+    public ProgressController(ProgressService progressService) {
         this.progressService = progressService;
-        this.workoutService = workoutService;
     }
 
     @Operation(
@@ -163,7 +159,7 @@ public class ProgressController {
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate
     ) {
-        return workoutService.getWorkoutHistory(
+        return progressService.getWorkoutHistory(
                 exerciseDefinitionId,
                 startDate,
                 endDate,

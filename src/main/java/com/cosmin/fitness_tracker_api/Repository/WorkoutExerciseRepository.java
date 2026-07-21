@@ -26,7 +26,7 @@ public interface WorkoutExerciseRepository extends JpaRepository<WorkoutExercise
             AND (we.workout.user.username = :username)
             AND (:startDate IS NULL OR we.workout.date >= :startDate)
             AND (:endDate IS NULL OR we.workout.date <= :endDate)
-            ORDER BY we.workout.date ASC
+            ORDER BY we.workout.date DESC,we.id DESC
             """
     )
     Page<WorkoutExercise> findHistoryByExerciseDefinitionIdAndWorkoutDate(Long exerciseDefinitionId, String username , LocalDate startDate, LocalDate endDate, Pageable pageable);

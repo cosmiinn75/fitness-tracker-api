@@ -427,40 +427,7 @@ public class WorkoutService {
 
 
 
-    @Transactional(readOnly = true)
-    public PagedResponse<WorkoutExerciseHistoryResponse> getWorkoutHistory(Long exerciseDefinitionId,LocalDate startDate, LocalDate endDate,Integer page , Integer pageSize) {
-        String username = getCurrentUsername();
 
-        Pageable pageable = PageRequest.of(page,pageSize);
-        if(startDate != null && endDate != null) {
-            if (startDate.isAfter(endDate)) {
-                throw new InvalidDateRangeException("Start date cannot be after end date");
-
-            }
-        }
-
-        exerciseDefinitionRepository.findById(exerciseDefinitionId)
-                .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Exercise definition not found"));
-
-        Page<WorkoutExerciseHistoryResponse> workoutExerciseHistoryResponses = workoutExerciseRepository.findHistoryByExerciseDefinitionIdAndWorkoutDate(
-                exerciseDefinitionId,username, startDate, endDate,pageable
-        )
-                .map(
-                        workoutExercise -> {
-                            List<SetResponse> setResponses = workoutExercise.getExerciseSets()
-                                    .stream()
-                                    .map(this::toSetResponse)
-                                    .toList();
-
-                                    return toExerciseHistoryResponse(workoutExercise, setResponses);
-
-                        }
-                );
-
-
-        return PagedResponse.from(workoutExerciseHistoryResponses);
-
-    }
 
 
 
@@ -482,16 +449,7 @@ public class WorkoutService {
                 setResponses
         );
     }
-    private WorkoutExerciseHistoryResponse toExerciseHistoryResponse(WorkoutExercise exercise, List<SetResponse> setResponses){
-        return new WorkoutExerciseHistoryResponse(
-                exercise.getWorkout().getId(),
-                exercise.getId(),
-                exercise.getExerciseNumber(),
-                exercise.getExerciseDefinition().getName(),
-                exercise.getWorkout().getDate(),
-                setResponses
-        );
-    }
+
     private SetResponse toSetResponse(ExerciseSet exerciseSet) {
         return new SetResponse(
                 exerciseSet.getId(),
