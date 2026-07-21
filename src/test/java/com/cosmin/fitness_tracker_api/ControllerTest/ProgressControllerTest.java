@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -151,6 +152,7 @@ public class ProgressControllerTest {
                         20L,
                         1,
                         "Bench Press",
+                        100.0,
                         LocalDate.of(2026, 7, 15),
                         List.of(setResponse)
                 );
@@ -218,6 +220,45 @@ public class ProgressControllerTest {
                 0,
                 10
         );
+    }
+
+    @Test
+    @WithMockUser(username = "cosmin")
+    void getSummary_ShouldReturnSummaryResponse() throws Exception {
+
+        LocalDate lastWorkoutDate = LocalDate.of(2026, 7, 20);
+
+        SummaryResponse response = new SummaryResponse(
+                15,
+                4,
+                12,
+                25,
+                lastWorkoutDate,
+                "Bench Press"
+        );
+
+        when(progressService.getSummary())
+                .thenReturn(response);
+
+        mockMvc.perform(
+                        get("/api/progress/summary")
+                )
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalWorkouts")
+                        .value(15))
+                .andExpect(jsonPath("$.trainingDaysLast7Days")
+                        .value(4))
+                .andExpect(jsonPath("$.trainingDaysLast30Days")
+                        .value(12))
+                .andExpect(jsonPath("$.totalSetsLast7Days")
+                        .value(25))
+                .andExpect(jsonPath("$.lastWorkoutDate")
+                        .value("2026-07-20"))
+                .andExpect(jsonPath("$.mostTrainedExerciseLast30Days")
+                        .value("Bench Press"));
+
+        verify(progressService).getSummary();
     }
 
 

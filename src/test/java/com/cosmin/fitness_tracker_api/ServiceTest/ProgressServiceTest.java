@@ -25,15 +25,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
-
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class ProgressServiceTest {
@@ -473,6 +471,7 @@ public class ProgressServiceTest {
                 LocalDate.of(2026, 7, 15),
                 historyResponse.workoutDate()
         );
+        assertEquals(116.67,historyResponse.estimatedOneRepMax(),0.1);
 
         assertEquals(1, historyResponse.setResponses().size());
 
@@ -546,6 +545,80 @@ public class ProgressServiceTest {
         verify(exerciseDefinitionRepository)
                 .findById(exerciseDefinitionId);
     }
+
+    @Test
+    void summary_ShouldReturnSummaryResponse(){
+        mockAuthenticatedUser();
+        User user = new User();
+        user.setUsername("cosmin");
+
+        LocalDate today = LocalDate.now();
+
+        LocalDate workoutDate = today.minusDays(1);
+
+        long totalWorkouts = 1;
+        when(workoutRepository.countByUserUsername("cosmin")).thenReturn(totalWorkouts);
+
+        ExerciseDefinition exerciseDefinition = new ExerciseDefinition();
+        exerciseDefinition.setName("Bench Press");
+        exerciseDefinition.setMuscleGroup(MuscleGroup.CHEST);
+
+        LocalDate aMonthAgo = today.minusDays(29);
+
+        Workout workout = new Workout();
+        workout.setUser(user);
+        workout.setDate(workoutDate);
+        workout.setWorkoutName("Push");
+
+        WorkoutExercise workoutExercise = new WorkoutExercise();
+        workoutExercise.setExerciseDefinition(exerciseDefinition);
+        workoutExercise.setWorkout(workout);
+        workoutExercise.setExerciseNumber(1);
+
+        ExerciseSet exerciseSet = new ExerciseSet();
+        exerciseSet.setRir(1);
+        exerciseSet.setReps(5);
+        exerciseSet.setWeight(100.0);
+        exerciseSet.setSetNumber(1);
+        exerciseSet.setWorkoutExercise(workoutExercise);
+
+        workoutExercise.setExerciseSets(List.of(exerciseSet));
+
+        workout.setWorkoutExercises(List.of(workoutExercise));
+
+        List<Workout> workouts = List.of(workout);
+
+        when(workoutRepository.findByUserUsernameAndDateBetween("cosmin", aMonthAgo, today))
+                .thenReturn(workouts);
+        when(workoutRepository.findFirstByUserUsernameOrderByDateDesc("cosmin"))
+                .thenReturn(Optional.of(workout));
+
+        SummaryResponse response = progressService.getSummary();
+
+        assertNotNull(response);
+
+        assertEquals(1, response.totalWorkouts());
+        assertEquals(1, response.trainingDaysLast7Days());
+        assertEquals(1, response.trainingDaysLast30Days());
+        assertEquals(1, response.totalSetsLast7Days());
+        assertEquals(workoutDate, response.lastWorkoutDate());
+        assertEquals("Bench Press", response.mostTrainedExerciseLast30Days());
+
+        verify(workoutRepository)
+                .countByUserUsername("cosmin");
+
+        verify(workoutRepository)
+                .findByUserUsernameAndDateBetween(
+                        "cosmin",
+                        aMonthAgo,
+                        today
+                );
+
+        verify(workoutRepository)
+                .findFirstByUserUsernameOrderByDateDesc("cosmin");
+
+    }
+
 
     private void mockAuthenticatedUser() {
 

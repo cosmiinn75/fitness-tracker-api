@@ -8,6 +8,7 @@ public record WorkoutExerciseHistoryResponse(
         Long workoutExerciseId,
         Integer exerciseNumber,
         String exerciseName,
+        Double estimatedOneRepMax,
         LocalDate workoutDate,
         List<SetResponse> setResponses
 

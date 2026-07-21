@@ -167,4 +167,23 @@ public class ProgressController {
                 size
         );
     }
+
+    @Operation(
+            summary = "Get progress summary",
+            description = "Returns a summary of the authenticated user's workout activity and training statistics"
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Progress summary retrieved successfully"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Missing or invalid JWT token"
+            )
+    })
+    @GetMapping("/summary")
+    public SummaryResponse getSummary() {
+        return progressService.getSummary();
+    }
 }

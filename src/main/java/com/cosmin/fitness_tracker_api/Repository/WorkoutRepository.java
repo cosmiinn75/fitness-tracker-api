@@ -38,4 +38,8 @@ public interface WorkoutRepository extends JpaRepository<Workout, Long> {
     );
 
     List<Workout> findByUserUsernameAndDateBetween(String currentUserName, LocalDate aWeekAgo, LocalDate today);
+
+    long countByUserUsername(String username);
+
+    Optional<Workout> findFirstByUserUsernameOrderByDateDesc(String username);
 }

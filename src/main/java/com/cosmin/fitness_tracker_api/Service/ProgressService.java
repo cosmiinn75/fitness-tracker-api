@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -166,6 +168,80 @@ public class ProgressService {
 
     }
 
+    @Transactional(readOnly = true)
+    public SummaryResponse getSummary() {
+        String username = getCurrentUsername();
+
+        LocalDate today = LocalDate.now();
+        LocalDate aWeekAgo = today.minusDays(6);
+        LocalDate aMonthAgo = today.minusDays(29);
+
+        long totalWorkouts =
+                workoutRepository.countByUserUsername(username);
+
+        List<Workout> workoutsLast30Days =
+                workoutRepository.findByUserUsernameAndDateBetween(
+                        username,
+                        aMonthAgo,
+                        today
+                );
+
+        long trainingDaysLast7Days = workoutsLast30Days.stream()
+                .map(Workout::getDate)
+                .filter(date ->
+                        !date.isBefore(aWeekAgo))
+                .distinct()
+                .count();
+
+        long trainingDaysLast30Days = workoutsLast30Days.stream()
+                .map(Workout::getDate)
+                .distinct()
+                .count();
+
+        long totalSetsLast7Days = workoutsLast30Days.stream()
+                .filter(workout ->
+                        !workout.getDate().isBefore(aWeekAgo))
+                .flatMap(workout ->
+                        workout.getWorkoutExercises().stream())
+                .mapToLong(workoutExercise ->
+                        workoutExercise.getExerciseSets().size())
+                .sum();
+
+        Map<String,Long> trainedExercises = workoutsLast30Days
+                .stream()
+                .flatMap(workout -> workout.getWorkoutExercises().stream())
+                .collect(Collectors.groupingBy(
+                        workoutExercise -> workoutExercise.getExerciseDefinition()
+                                .getName(),
+                        Collectors.summingLong(
+                                workoutExercise -> workoutExercise.getExerciseSets()
+                                        .size()
+                        )
+                ));
+        String mostTrainedExercise = trainedExercises.entrySet()
+                .stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+
+        LocalDate lastWorkoutDate =
+                workoutRepository
+                        .findFirstByUserUsernameOrderByDateDesc(username)
+                        .map(Workout::getDate)
+                        .orElse(null);
+
+        return new SummaryResponse(
+                totalWorkouts,
+                trainingDaysLast7Days,
+                trainingDaysLast30Days,
+                totalSetsLast7Days,
+                lastWorkoutDate,
+                mostTrainedExercise
+        );
+    }
+
+
+
 
 
 
@@ -182,6 +258,8 @@ public class ProgressService {
     }
 
 
+
+
     private String getCurrentUsername() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
 
@@ -192,12 +270,27 @@ public class ProgressService {
         return authentication.getName();
     }
 
-    private WorkoutExerciseHistoryResponse toExerciseHistoryResponse(WorkoutExercise exercise, List<SetResponse> setResponses){
+    private WorkoutExerciseHistoryResponse toExerciseHistoryResponse(
+            WorkoutExercise exercise,
+            List<SetResponse> setResponses
+    ) {
+        double estimatedOneRepMax = 0.0;
+
+        for (SetResponse setResponse : setResponses) {
+            double oneRepMax = setResponse.weight()
+                    * (1 + setResponse.reps() / 30.0);
+
+            if (oneRepMax > estimatedOneRepMax) {
+                estimatedOneRepMax = oneRepMax;
+            }
+        }
+
         return new WorkoutExerciseHistoryResponse(
                 exercise.getWorkout().getId(),
                 exercise.getId(),
                 exercise.getExerciseNumber(),
                 exercise.getExerciseDefinition().getName(),
+                estimatedOneRepMax,
                 exercise.getWorkout().getDate(),
                 setResponses
         );
@@ -212,4 +305,7 @@ public class ProgressService {
                 exerciseSet.getRir()
         );
     }
+
+
+
 }
