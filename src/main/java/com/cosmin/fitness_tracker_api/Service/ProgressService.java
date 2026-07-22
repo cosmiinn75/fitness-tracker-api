@@ -279,7 +279,7 @@ public class ProgressService {
         for (SetResponse setResponse : setResponses) {
             double oneRepMax = setResponse.weight()
                     * (1 + setResponse.reps() / 30.0);
-
+            oneRepMax = Math.round(oneRepMax * 100.0) / 100.0;
             if (oneRepMax > estimatedOneRepMax) {
                 estimatedOneRepMax = oneRepMax;
             }

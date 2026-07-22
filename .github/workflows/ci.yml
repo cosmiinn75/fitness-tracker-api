@@ -43,7 +43,7 @@ jobs:
       TEST_DB_PASSWORD: root
 
       JWT_SECRET: ci-test-jwt-secret-key-that-is-long-enough-2026
-      SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
 
     steps:
       - name: Checkout repository
