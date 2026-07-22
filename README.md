@@ -2,20 +2,22 @@
 
 [![Fitness Tracker CI](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml/badge.svg)](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml)
 
-A secure REST API for recording workouts and tracking strength-training progress, built with **Java 26**, **Spring Boot 4**, and **MySQL**.
+A secure REST API for recording strength-training workouts and tracking progress, built with **Java 26**, **Spring Boot 4.1**, and **MySQL 8**.
 
-The project goes beyond basic CRUD operations by implementing JWT authentication with refresh-token rotation, resource ownership, nested workout management, workout duplication, filtering and pagination, exercise history, estimated one-repetition maximum calculations, progress summaries, automated testing, Docker support, health monitoring, and continuous integration.
+This portfolio project goes beyond basic CRUD operations. It includes JWT authentication with refresh-token rotation, user-owned resources, nested workout management, filtering and pagination, workout duplication, exercise history, estimated one-repetition maximum calculations, paginated personal records powered by a native SQL window function, Flyway database migrations, automated tests, Docker, health monitoring, and continuous integration.
 
 ## Table of Contents
 
-- [Main Features](#main-features)
+- [Highlights](#highlights)
+- [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Domain Model](#domain-model)
+- [Database Migrations](#database-migrations)
 - [API Endpoints](#api-endpoints)
 - [Authentication Flow](#authentication-flow)
-- [Progress Tracking](#progress-tracking)
-- [Request Examples](#request-examples)
+- [Progress Analytics](#progress-analytics)
+- [Request and Response Examples](#request-and-response-examples)
 - [Validation and Error Handling](#validation-and-error-handling)
 - [Running with Docker](#running-with-docker)
 - [Running Locally](#running-locally)
@@ -25,80 +27,97 @@ The project goes beyond basic CRUD operations by implementing JWT authentication
 - [Continuous Integration](#continuous-integration)
 - [Project Structure](#project-structure)
 - [Security](#security)
-- [Future Improvements](#future-improvements)
+- [Roadmap](#roadmap)
 - [What I Learned](#what-i-learned)
 - [Author](#author)
 
-## Main Features
+## Highlights
+
+- Secure JWT authentication with access and refresh tokens
+- Persistent refresh-token rotation and revocation
+- Complete nested CRUD for workouts, exercises, and sets
+- Ownership protection for every user-specific operation
+- Pagination, filtering, date ranges, and deterministic ordering
+- Paginated personal records selected with `ROW_NUMBER()` and `PARTITION BY`
+- Flyway-managed schema with Hibernate validation
+- 76 automated unit, controller, and integration tests
+- Dockerized API and MySQL environment
+- Swagger/OpenAPI documentation with JWT authorization
+- Actuator health monitoring
+- GitHub Actions CI with a real MySQL service container
+
+## Features
 
 ### Authentication and Security
 
-- User registration and login
-- Short-lived JWT access tokens
-- Database-persisted refresh tokens
-- Refresh-token rotation
-- Logout and refresh-token revocation
-- BCrypt password hashing
-- Stateless Spring Security configuration
-- JWT request filter
-- Ownership checks for workouts and progress data
-- Secrets and database credentials loaded from environment variables
+- Register and authenticate users
+- Generate short-lived JWT access tokens
+- Persist refresh tokens in MySQL
+- Rotate refresh tokens when a new access token is requested
+- Revoke refresh tokens during rotation and logout
+- Hash passwords with BCrypt
+- Use stateless Spring Security configuration
+- Validate access tokens through a custom JWT filter
+- Load database credentials and JWT secrets from environment variables
+- Restrict workouts and progress data to the authenticated owner
 
 ### Exercise Definitions
 
 - Create reusable exercise definitions
 - Retrieve all exercise definitions
-- Retrieve an exercise definition by ID
+- Retrieve one exercise definition by ID
 - Update an exercise name and muscle group
-- Prevent duplicate exercise names while still allowing an exercise to keep its current name during an update
+- Prevent duplicate exercise names
+- Allow an exercise to keep its current name during an update
 - Supported muscle groups: `CHEST`, `BACK`, `ARMS`, `SHOULDERS`, `LEGS`, and `CORE`
 
 ### Workout Management
 
-- Create workouts with multiple exercises and sets
+- Create workouts containing multiple exercises and sets
 - Retrieve a workout by ID
 - Retrieve paginated workout history
-- Filter workouts by name and date range
+- Filter workouts by partial name and date range
 - Sort workout history by date in descending order
 - Update workout metadata with `PATCH`
 - Replace an entire workout with `PUT`
 - Delete workouts
-- Duplicate a workout with all its exercises and sets while choosing a new name and date
-- Restrict every workout operation to the authenticated owner
+- Duplicate a workout with all its exercises and sets while selecting a new name and date
+- Protect every operation with authenticated-user ownership checks
 
 ### Exercises and Sets Inside a Workout
 
-- Add an exercise to an existing workout
-- Change an exercise definition while preserving its sets
+- Add an exercise and its sets to an existing workout
+- Change the exercise definition while preserving recorded sets
 - Delete an exercise from a workout
 - Add a set to an exercise
 - Partially update a set
 - Delete a set
+- Preserve ordering with `exerciseNumber` and `setNumber`
 - Automatically renumber exercises and sets after deletion
-- Preserve exercise and set order through `exerciseNumber` and `setNumber`
 
-### Progress Tracking
+### Progress Analytics
 
-- Calculate the total volume of a workout
-- Calculate total volume over the last seven days
-- Calculate total volume from the beginning of the current month
-- Retrieve a personal record for an exercise
+- Calculate the volume of a workout
+- Calculate volume for the last seven days
+- Calculate volume from the beginning of the current month
+- Retrieve the personal record for one exercise
+- Retrieve all personal records with database-level pagination
+- Select one best set per exercise with a native MySQL window-function query
 - Retrieve paginated exercise history with optional date filters
-- Calculate an estimated one-repetition maximum for each exercise-history entry
-- Retrieve a compact activity summary for the authenticated user
+- Calculate an estimated one-repetition maximum for each history entry
+- Retrieve an activity summary for the authenticated user
 
-### API Quality and Operations
+### Database and Operations
 
-- Request-body, path-variable, and pagination validation
-- Centralized exception handling
-- Consistent HTTP status codes
-- Swagger UI and OpenAPI documentation
-- JWT authorization support inside Swagger UI
-- Spring Boot Actuator health endpoint
-- Multi-stage Docker image
-- Docker Compose setup for the API and MySQL
-- Automated service, controller, and integration tests
-- GitHub Actions continuous integration
+- Manage the schema with versioned Flyway migrations
+- Run Flyway before Hibernate starts
+- Validate entity-to-schema compatibility with `ddl-auto=validate`
+- Document the API through Springdoc OpenAPI and Swagger UI
+- Authorize Swagger requests with JWT bearer tokens
+- Expose a public Actuator health endpoint
+- Build the API with a multi-stage Docker image
+- Start the API and MySQL together through Docker Compose
+- Build and test every push and pull request through GitHub Actions
 
 ## Tech Stack
 
@@ -110,24 +129,27 @@ The project goes beyond basic CRUD operations by implementing JWT authentication
 | Security | Spring Security, JWT, BCrypt |
 | Persistence | Spring Data JPA, Hibernate |
 | Database | MySQL 8 |
+| Schema migrations | Flyway |
 | Validation | Jakarta Bean Validation |
 | API documentation | Springdoc OpenAPI, Swagger UI |
 | Monitoring | Spring Boot Actuator |
-| Testing | JUnit, Mockito, MockMvc, Spring Boot Test |
-| Build tool | Maven Wrapper |
+| Testing | JUnit 5, Mockito, MockMvc, Spring Boot Test |
+| Build | Maven Wrapper |
 | Containers | Docker, Docker Compose |
 | CI | GitHub Actions |
 
 ## Architecture
 
-The application follows a layered structure:
+The application follows a layered architecture:
 
-1. **Controllers** expose REST endpoints and validate incoming data.
-2. **Services** contain authentication, workout, exercise, and progress business logic.
-3. **Repositories** provide database access through Spring Data JPA.
-4. **DTOs** separate the public API contract from persistence entities.
-5. **Security components** validate JWTs and populate the Spring Security context.
-6. **Global exception handling** converts business and validation exceptions into HTTP responses.
+1. **Controllers** expose REST endpoints and validate incoming parameters and request bodies.
+2. **Services** implement authentication, ownership, workout, exercise, and progress business rules.
+3. **Repositories** access MySQL through Spring Data JPA, JPQL, and native SQL where appropriate.
+4. **DTOs** keep the public API contract separate from persistence entities.
+5. **Projections** map optimized native-query results without loading full JPA entity graphs.
+6. **Security components** validate JWTs and populate the Spring Security context.
+7. **Global exception handling** converts validation and business exceptions into HTTP responses.
+8. **Flyway migrations** version and reproduce the database schema.
 
 ## Domain Model
 
@@ -142,12 +164,48 @@ erDiagram
 
 - A user owns multiple workouts and refresh tokens.
 - A workout contains ordered workout exercises.
-- A workout exercise references a reusable exercise definition.
-- A workout exercise contains ordered sets with weight, repetitions, and optional RIR.
+- A workout exercise references one reusable exercise definition.
+- A workout exercise contains ordered sets.
+- A set records weight, repetitions, and optional repetitions in reserve (`RIR`).
+
+## Database Migrations
+
+The schema is managed by Flyway rather than being generated automatically by Hibernate.
+
+Migration files are stored in:
+
+```text
+src/main/resources/db/migration
+```
+
+The initial migration is:
+
+```text
+V1__create_initial_schema.sql
+```
+
+It creates the following tables:
+
+- `users`
+- `refresh_tokens`
+- `exercise_definitions`
+- `workouts`
+- `workout_exercises`
+- `exercise_sets`
+
+Application startup follows this sequence:
+
+1. The application connects to MySQL.
+2. Flyway checks `flyway_schema_history`.
+3. Flyway applies every migration that has not yet run.
+4. Hibernate validates the resulting schema against the JPA entities.
+5. The application starts only when the schema is valid.
+
+Applied migrations must not be edited. Every future schema change should be introduced through a new version such as `V2__add_indexes.sql`.
 
 ## API Endpoints
 
-All endpoints except authentication, Swagger/OpenAPI, and the health check require a valid access token.
+All endpoints except authentication, Swagger/OpenAPI, and the Actuator health endpoint require a valid JWT access token.
 
 Protected requests use:
 
@@ -159,9 +217,9 @@ Authorization: Bearer <access-token>
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `POST` | `/api/auth/register` | Register a user and receive access and refresh tokens |
-| `POST` | `/api/auth/login` | Authenticate and receive access and refresh tokens |
-| `POST` | `/api/auth/refresh` | Rotate a refresh token and receive a new token pair |
+| `POST` | `/api/auth/register` | Register a user and return an access/refresh-token pair |
+| `POST` | `/api/auth/login` | Authenticate and return an access/refresh-token pair |
+| `POST` | `/api/auth/refresh` | Rotate a refresh token and return a new token pair |
 | `POST` | `/api/auth/logout` | Revoke a refresh token |
 
 ### Exercise Definitions
@@ -171,7 +229,7 @@ Authorization: Bearer <access-token>
 | `GET` | `/api/exercises` | Retrieve all exercise definitions |
 | `GET` | `/api/exercises/{id}` | Retrieve an exercise definition by ID |
 | `POST` | `/api/exercises` | Create an exercise definition |
-| `PUT` | `/api/exercises/{id}` | Update an exercise definition |
+| `PUT` | `/api/exercises/{id}` | Replace an exercise definition |
 
 ### Workouts
 
@@ -183,15 +241,15 @@ Authorization: Bearer <access-token>
 | `PATCH` | `/api/workouts/{id}` | Update the workout name and date |
 | `PUT` | `/api/workouts/{id}` | Replace the complete workout |
 | `DELETE` | `/api/workouts/{id}` | Delete a workout |
-| `POST` | `/api/workouts/{workoutId}/duplicate` | Duplicate a workout using a new name and date |
+| `POST` | `/api/workouts/{workoutId}/duplicate` | Duplicate a workout with a new name and date |
 
-The workout-list endpoint supports these query parameters:
+`GET /api/workouts` supports:
 
 | Parameter | Default | Rules | Description |
 | --- | --- | --- | --- |
-| `page` | `0` | Minimum `0` | Page index |
-| `size` | `10` | Between `1` and `100` | Page size |
-| `name` | — | Optional | Case-insensitive partial name filter |
+| `page` | `0` | Minimum `0` | Zero-based page index |
+| `size` | `10` | From `1` to `100` | Page size |
+| `name` | — | Optional | Case-insensitive partial-name filter |
 | `startDate` | — | `YYYY-MM-DD` | Inclusive start date |
 | `endDate` | — | `YYYY-MM-DD` | Inclusive end date |
 
@@ -205,7 +263,7 @@ GET /api/workouts?page=0&size=10&name=push&startDate=2026-07-01&endDate=2026-07-
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `POST` | `/api/workouts/{workoutId}/exercises` | Add an exercise with its sets |
+| `POST` | `/api/workouts/{workoutId}/exercises` | Add an exercise and its sets |
 | `PATCH` | `/api/workouts/{workoutId}/exercises/{exerciseNumber}` | Change the exercise definition |
 | `DELETE` | `/api/workouts/{workoutId}/exercises/{exerciseNumber}` | Delete and renumber an exercise |
 | `POST` | `/api/workouts/{workoutId}/exercises/{exerciseNumber}/sets` | Add a set |
@@ -217,19 +275,25 @@ GET /api/workouts?page=0&size=10&name=push&startDate=2026-07-01&endDate=2026-07-
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | `GET` | `/api/progress/workouts/{workoutId}/volume` | Calculate the volume of one workout |
-| `GET` | `/api/progress/weekly-volume` | Calculate volume over the last seven days |
+| `GET` | `/api/progress/weekly-volume` | Calculate volume for the last seven days |
 | `GET` | `/api/progress/monthly-volume` | Calculate volume from the start of the current month |
-| `GET` | `/api/progress/exercises/{exerciseDefinitionId}/personal-record` | Retrieve the personal record for an exercise |
+| `GET` | `/api/progress/exercises/{exerciseDefinitionId}/personal-record` | Retrieve the best set for one exercise |
+| `GET` | `/api/progress/personal-records` | Retrieve paginated personal records for all exercises |
 | `GET` | `/api/progress/exercises/{exerciseDefinitionId}/history` | Retrieve paginated exercise history |
-| `GET` | `/api/progress/summary` | Retrieve the user's activity summary |
+| `GET` | `/api/progress/summary` | Retrieve the authenticated user's activity summary |
 
-Exercise history accepts the following optional query parameters:
+Personal-record pagination parameters:
+
+| Parameter | Default | Rules |
+| --- | --- | --- |
+| `page` | `0` | Minimum `0` |
+| `size` | `20` | From `1` to `100` |
+
+Exercise history accepts the same pagination parameters plus optional `startDate` and `endDate` filters:
 
 ```http
 GET /api/progress/exercises/1/history?page=0&size=20&startDate=2026-06-01&endDate=2026-07-31
 ```
-
-The default history page size is `20`, and the maximum is `100`. Results are returned from newest to oldest.
 
 ### Operations
 
@@ -241,15 +305,16 @@ The default history page size is `20`, and the maximum is `100`. Results are ret
 
 1. A user registers or logs in.
 2. The API returns an access token and a refresh token.
-3. The access token is sent in the `Authorization` header for protected requests.
+3. The client sends the access token in the `Authorization` header.
 4. Access tokens expire after **15 minutes**.
 5. Refresh tokens are stored in MySQL and expire after **7 days**.
-6. Calling `/api/auth/refresh` validates and revokes the current refresh token, then returns a new access token and refresh token.
-7. Calling `/api/auth/logout` revokes the supplied refresh token.
+6. `/api/auth/refresh` validates and revokes the current refresh token.
+7. The API returns a new access token and refresh token.
+8. `/api/auth/logout` revokes the supplied refresh token.
 
-This rotation mechanism prevents a refresh token from being reused after a successful refresh.
+A successfully rotated refresh token cannot be reused.
 
-## Progress Tracking
+## Progress Analytics
 
 ### Workout Volume
 
@@ -261,22 +326,34 @@ volume = weight × repetitions
 
 ### Personal Records
 
-The best recorded set for an exercise is selected using this priority:
+The best recorded set is selected in this order:
 
 1. Highest weight
-2. Highest repetitions when the weight is equal
+2. Highest repetitions when weight is equal
 3. Highest RIR when weight and repetitions are equal
-4. Most recent workout date when all previous values are equal
+4. Most recent workout date when the previous values are equal
+5. Deterministic workout and set ordering for any remaining tie
+
+The paginated endpoint performs this selection directly in MySQL. It uses:
+
+```sql
+ROW_NUMBER() OVER (
+    PARTITION BY exercise_definition_id
+    ORDER BY weight DESC, reps DESC, rir DESC, date DESC
+)
+```
+
+Only one result per exercise is returned. The query filters by the authenticated username, uses an interface projection, and supplies a dedicated `countQuery` so Spring Data can build correct page metadata.
 
 ### Estimated One-Repetition Maximum
 
-Exercise history includes the highest estimated 1RM from the sets recorded in each workout. The calculation uses the Epley formula:
+Exercise history includes the highest estimated 1RM from each workout entry. It uses the Epley formula:
 
 ```text
 estimated 1RM = weight × (1 + repetitions / 30)
 ```
 
-This value is an estimate intended for progress comparison, not a guaranteed maximal lift.
+The value is intended for progress comparison and is not a guaranteed maximal lift.
 
 ### Progress Summary
 
@@ -285,11 +362,11 @@ This value is an estimate intended for progress comparison, not a guaranteed max
 - Total number of workouts
 - Distinct training days during the last 7 days
 - Distinct training days during the last 30 days
-- Total number of sets during the last 7 days
+- Total sets recorded during the last 7 days
 - Date of the latest workout
-- Most-trained exercise during the last 30 days, measured by number of sets
+- Most-trained exercise during the last 30 days, measured by set count
 
-## Request Examples
+## Request and Response Examples
 
 ### Register
 
@@ -341,19 +418,19 @@ Content-Type: application/json
 ```json
 {
   "workoutName": "Push Day",
-  "date": "2026-07-21",
+  "date": "2026-07-22",
   "exerciseRequests": [
     {
       "exerciseDefinitionId": 1,
       "setRequests": [
         {
-          "weight": 100.0,
-          "reps": 5,
+          "weight": 80.0,
+          "reps": 8,
           "rir": 2
         },
         {
-          "weight": 95.0,
-          "reps": 8,
+          "weight": 100.0,
+          "reps": 5,
           "rir": 1
         }
       ]
@@ -364,7 +441,7 @@ Content-Type: application/json
 
 ### Partially Update a Set
 
-Only the supplied fields are changed.
+Only supplied fields are changed.
 
 ```http
 PATCH /api/workouts/10/exercises/1/sets/2
@@ -390,13 +467,51 @@ Content-Type: application/json
 ```json
 {
   "workoutName": "Push Day - Week 2",
-  "date": "2026-07-28"
+  "date": "2026-07-29"
 }
 ```
 
-The new workout receives copies of the original exercises and sets. The original workout remains unchanged.
+The original workout remains unchanged.
 
-### Progress Summary Response
+### Paginated Personal Records
+
+```http
+GET /api/progress/personal-records?page=0&size=2
+Authorization: Bearer <access-token>
+```
+
+```json
+{
+  "content": [
+    {
+      "exerciseDefinitionId": 1,
+      "exerciseName": "Bench Press",
+      "weight": 105.0,
+      "reps": 3,
+      "rir": 0,
+      "date": "2026-07-22"
+    },
+    {
+      "exerciseDefinitionId": 2,
+      "exerciseName": "Squat",
+      "weight": 145.0,
+      "reps": 4,
+      "rir": 0,
+      "date": "2026-07-22"
+    }
+  ],
+  "page": 0,
+  "size": 2,
+  "totalElements": 7,
+  "totalPages": 4,
+  "first": true,
+  "last": false
+}
+```
+
+When the user has no recorded sets, the endpoint returns `200 OK` with an empty `content` list.
+
+### Progress Summary
 
 ```json
 {
@@ -404,12 +519,12 @@ The new workout receives copies of the original exercises and sets. The original
   "trainingDaysLast7Days": 4,
   "trainingDaysLast30Days": 15,
   "totalSetsLast7Days": 58,
-  "lastWorkoutDate": "2026-07-21",
+  "lastWorkoutDate": "2026-07-22",
   "mostTrainedExerciseLast30Days": "Bench Press"
 }
 ```
 
-### Exercise History Response
+### Exercise History
 
 ```json
 {
@@ -419,15 +534,15 @@ The new workout receives copies of the original exercises and sets. The original
       "workoutExerciseId": 31,
       "exerciseNumber": 1,
       "exerciseName": "Bench Press",
-      "estimatedOneRepMax": 116.67,
-      "workoutDate": "2026-07-21",
+      "estimatedOneRepMax": 122.5,
+      "workoutDate": "2026-07-22",
       "setResponses": [
         {
           "id": 91,
           "setNumber": 1,
-          "weight": 100.0,
+          "weight": 105.0,
           "reps": 5,
-          "rir": 2
+          "rir": 1
         }
       ]
     }
@@ -451,11 +566,11 @@ The API validates:
 - Exercise-definition IDs
 - Weight, repetitions, and RIR values
 - Positive path variables
-- Page index and page size
-- Start and end date order
-- Non-empty workout exercise and set collections
+- Page indexes and page sizes
+- Start and end date ordering
+- Non-empty exercise and set collections
 
-Custom exceptions are translated by a global exception handler into appropriate responses such as:
+The global exception handler translates validation and business failures into responses such as:
 
 - `400 Bad Request` for invalid input or date ranges
 - `401 Unauthorized` for invalid credentials, tokens, or authentication
@@ -471,7 +586,7 @@ Example business-error response:
 }
 ```
 
-Validation errors are returned as a map of field names and validation messages.
+Validation failures are returned as field-to-message mappings.
 
 ## Running with Docker
 
@@ -488,11 +603,19 @@ cd fitness-tracker-api
 cp .env.example .env
 ```
 
-Update `.env` with your own database password and a long JWT secret, then run:
+Update `.env` with a database password and a long JWT secret, then run:
 
 ```bash
 docker compose up --build
 ```
+
+Docker Compose:
+
+1. Starts MySQL 8.
+2. Waits for the database health check.
+3. Starts the API.
+4. Runs Flyway migrations automatically.
+5. Validates the schema through Hibernate.
 
 Available services:
 
@@ -501,13 +624,21 @@ Available services:
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 - Health check: `http://localhost:8080/actuator/health`
 
-Stop the containers with:
+Stop the services:
 
 ```bash
 docker compose down
 ```
 
-The MySQL data is stored in the named Docker volume `fitness_tracker_mysql_data`.
+MySQL data is preserved in the named volume `fitness_tracker_mysql_data`.
+
+To also remove the local database volume and recreate an empty database:
+
+```bash
+docker compose down -v
+```
+
+This permanently removes the data stored in that Docker volume.
 
 ## Running Locally
 
@@ -516,22 +647,30 @@ The MySQL data is stored in the named Docker volume `fitness_tracker_mysql_data`
 - Java 26
 - MySQL 8
 
-Create a MySQL database named `fitness_tracker_db`, then create the environment file:
+Create an empty database:
+
+```sql
+CREATE DATABASE fitness_tracker_db;
+```
+
+Flyway creates the tables when the application starts.
+
+Create the environment file:
 
 ```bash
 cp .env.example .env
 ```
 
-Update the values in `.env`, then start the application:
+Update `.env`, then start the application:
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-On Windows:
+On Windows PowerShell:
 
 ```powershell
-mvnw.cmd spring-boot:run
+.\mvnw.cmd spring-boot:run
 ```
 
 The API starts on `http://localhost:8080`.
@@ -543,33 +682,40 @@ The API starts on `http://localhost:8080`.
 | `DB_URL` | Yes | `jdbc:mysql://localhost:3306/fitness_tracker_db` | JDBC database URL |
 | `DB_USERNAME` | Yes | `root` | Database username |
 | `DB_PASSWORD` | Yes | `your_local_password` | Database password |
-| `JWT_SECRET` | Yes | A long random value | Secret used to sign JWTs |
-| `SPRING_JPA_HIBERNATE_DDL_AUTO` | No | `update` | Overrides the Hibernate schema strategy |
+| `JWT_SECRET` | Yes | A long random value | Secret used to sign JWT access tokens |
+| `SPRING_JPA_HIBERNATE_DDL_AUTO` | No | `validate` | Optional Hibernate schema-strategy override |
 
-Do not commit the real `.env` file or production secrets.
+When running the API inside Docker, the database URL uses the Compose service name and internal port:
+
+```text
+jdbc:mysql://mysql:3306/fitness_tracker_db
+```
+
+Do not commit `.env` or real production secrets.
 
 ## Swagger and Health Check
 
-Swagger UI is available at:
+Swagger UI:
 
 ```text
 http://localhost:8080/swagger-ui/index.html
 ```
 
-The OpenAPI specification is available at:
+OpenAPI document:
 
 ```text
 http://localhost:8080/v3/api-docs
 ```
 
-To call protected endpoints from Swagger:
+To call protected endpoints through Swagger:
 
 1. Register or log in.
-2. Copy the returned access token.
+2. Copy the access token.
 3. Select **Authorize** in Swagger UI.
-4. Enter the token and call a protected endpoint.
+4. Paste the token.
+5. Call a protected endpoint.
 
-The public Actuator health endpoint is available at:
+Public health endpoint:
 
 ```text
 http://localhost:8080/actuator/health
@@ -585,121 +731,149 @@ Example response:
 
 ## Testing
 
-Run the complete test suite with:
+Run the complete suite:
 
 ```bash
 ./mvnw clean verify
 ```
 
-On Windows:
+On Windows PowerShell:
 
 ```powershell
-mvnw.cmd clean verify
+.\mvnw.cmd clean verify
 ```
 
-The current project contains **70 automated test methods** across:
+The project currently contains **76 automated test methods**, including:
 
 - Service unit tests with JUnit and Mockito
 - Controller tests with MockMvc
-- Integration tests using Spring Boot, real repositories, and MySQL
+- Spring Boot integration tests backed by MySQL
 - Authentication and refresh-token tests
 - Resource-ownership tests
 - Validation and exception-response tests
 - Workout duplication tests
 - Exercise-history and progress-summary tests
+- Native personal-record query integration tests
+- Personal-record pagination and projection-mapping tests
+
+The personal-record repository tests verify:
+
+- Weight, repetitions, RIR, and date priority
+- Exclusion of records belonging to another user
+- Correct `totalElements` and `totalPages`
+- Multiple pages with different exercise records
+- An empty result for a user without recorded sets
 
 ## Continuous Integration
 
-The GitHub Actions workflow runs on every push and pull request targeting `main`.
+The GitHub Actions workflow runs for pushes and pull requests targeting `main`.
 
 The pipeline:
 
 1. Checks out the repository.
 2. Starts a MySQL 8 service container.
 3. Configures Java 26 and the Maven dependency cache.
-4. Builds the project.
-5. Executes the complete test suite with `./mvnw clean verify`.
+4. Runs Flyway against the test database.
+5. Builds the project.
+6. Executes `./mvnw --batch-mode clean verify`.
 
-The build status is shown by the badge at the top of this README.
+The current build status is displayed by the badge at the top of this README.
 
 ## Project Structure
 
 ```text
 fitness-tracker-api/
-├── .github/workflows/        # GitHub Actions CI
-├── src/main/java/com/cosmin/fitness_tracker_api/
-│   ├── Controller/           # REST controllers
-│   ├── DTO/                  # Request and response models
-│   ├── Enum/                 # Muscle-group values
-│   ├── Exception/            # Custom exceptions and global handling
-│   ├── Model/                # JPA entities
-│   ├── Repository/           # Spring Data JPA repositories
-│   ├── Security/             # JWT, Spring Security, and OpenAPI config
-│   └── Service/              # Business logic
-├── src/main/resources/       # Application configuration
-├── src/test/java/            # Unit, controller, and integration tests
-├── src/test/resources/       # Test configuration
-├── .env.example              # Environment-variable template
-├── docker-compose.yml        # API and MySQL services
-├── Dockerfile                # Multi-stage application image
-├── pom.xml                   # Maven configuration
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── src/
+│   ├── main/
+│   │   ├── java/com/cosmin/fitness_tracker_api/
+│   │   │   ├── Controller/
+│   │   │   ├── DTO/
+│   │   │   ├── Enum/
+│   │   │   ├── Exception/
+│   │   │   ├── Model/
+│   │   │   ├── Repository/
+│   │   │   │   └── Projection/
+│   │   │   ├── Security/
+│   │   │   └── Service/
+│   │   └── resources/
+│   │       ├── db/migration/
+│   │       │   └── V1__create_initial_schema.sql
+│   │       └── application.properties
+│   └── test/
+│       ├── java/com/cosmin/fitness_tracker_api/
+│       │   ├── ControllerTest/
+│       │   ├── IntegrationTest/
+│       │   └── ServiceTest/
+│       └── resources/
+│           └── application-test.properties
+├── .env.example
+├── docker-compose.yml
+├── Dockerfile
+├── pom.xml
 └── README.md
 ```
 
 ## Security
 
-- Passwords are stored using BCrypt hashes.
-- The application does not use HTTP sessions.
-- Access tokens are short-lived and signed using `HS256`.
+- Passwords are stored as BCrypt hashes.
+- The API does not use HTTP sessions.
+- Access tokens are signed with `HS256` and expire after 15 minutes.
 - Refresh tokens are persisted, validated, rotated, and revocable.
-- CSRF protection is disabled because the API uses stateless bearer-token authentication.
+- Refresh tokens expire after 7 days.
+- CSRF is disabled because the API uses stateless bearer-token authentication.
 - Database credentials and JWT secrets are externalized.
-- Workout and progress queries include the authenticated username.
-- A user cannot retrieve or modify another user's workouts through their IDs.
+- Workouts are queried by both resource ID and authenticated username.
+- Progress queries filter by the authenticated username.
+- Users cannot read or modify another user's workouts through their IDs.
 - Authentication, Swagger/OpenAPI, and `/actuator/health` are the only public endpoint groups.
 
-Production environments should use a long random JWT secret, dedicated credentials, HTTPS, and separate configuration from development and CI.
+Production deployments should use HTTPS, dedicated database credentials, a long random JWT secret, and separate production configuration.
 
-## Future Improvements
+## Roadmap
 
-- Deploy the API to a public cloud platform
-- Replace automatic schema updates with Flyway database migrations
+- Add Flyway V2 constraints and database indexes
 - Use Testcontainers for isolated integration-test databases
-- Optimize nested workout and summary queries to reduce potential N+1 queries
-- Add configurable sorting to workout and exercise history
-- Add user profile and password-management endpoints
-- Add password reset and email verification
-- Add rate limiting for authentication endpoints
+- Add JaCoCo coverage reporting
+- Deploy the API to a public cloud platform
 - Add structured logging and additional Actuator metrics
-- Add API versioning
+- Add rate limiting to authentication endpoints
+- Add training goals and goal-progress tracking
+- Add profile and password-management endpoints
+- Optimize remaining nested summary queries after measuring their SQL behavior
 
 ## What I Learned
 
 While building this project, I practiced:
 
 - Designing and documenting REST APIs with Spring Boot
-- Separating controllers, services, repositories, entities, and DTOs
-- Modeling nested JPA relationships
+- Separating controllers, services, repositories, entities, projections, and DTOs
+- Modeling nested JPA relationships and aggregate ownership
 - Implementing JWT authentication and Spring Security filters
-- Implementing persistent refresh tokens, rotation, expiration, and revocation
+- Implementing refresh-token persistence, rotation, expiration, and revocation
 - Protecting user-owned resources
-- Using `POST`, `GET`, `PUT`, `PATCH`, and `DELETE` correctly
-- Implementing pagination, filtering, and date-range validation
+- Using `POST`, `GET`, `PUT`, `PATCH`, and `DELETE` appropriately
+- Implementing pagination, filtering, sorting, and date-range validation
 - Maintaining ordered nested resources after deletion
-- Duplicating aggregate data with child entities
-- Calculating workout volume, personal records, activity summaries, and estimated 1RM
-- Building exercise-specific progress history
-- Handling validation and business exceptions globally
+- Duplicating aggregates with their child entities
+- Calculating workout volume, personal records, progress summaries, and estimated 1RM
+- Using MySQL window functions to select one ranked result per group
+- Returning native query results through interface projections
+- Implementing database-level pagination with a dedicated count query
+- Managing schema evolution with Flyway
+- Validating the database schema through Hibernate
 - Writing unit tests with JUnit and Mockito
-- Testing REST controllers with MockMvc
-- Writing database-backed integration tests
+- Testing controllers with MockMvc
+- Writing database-backed repository integration tests
 - Containerizing Spring Boot and MySQL with Docker Compose
 - Automating builds and tests with GitHub Actions
 - Exposing API documentation and operational health checks
 
 ## Status
 
-The core API is implemented and actively maintained as a backend portfolio project. The current `main` branch is covered by automated tests and a successful continuous-integration pipeline.
+The core API is implemented and actively maintained as a backend portfolio project. The `main` branch includes automated tests and continuous integration.
 
 ## Author
 
