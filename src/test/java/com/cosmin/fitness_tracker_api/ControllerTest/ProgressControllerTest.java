@@ -15,8 +15,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDate;
 import java.util.List;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -131,6 +131,63 @@ public class ProgressControllerTest {
     }
 
     @Test
+    void getPersonalRecords_ShouldReturnPagedResponse200() throws Exception {
+        PersonalRecordResponse benchPress = new PersonalRecordResponse(
+                1L,
+                "Bench Press",
+                105.0,
+                3,
+                0,
+                LocalDate.of(2026, 7, 22)
+        );
+
+        PersonalRecordResponse squat = new PersonalRecordResponse(
+                2L,
+                "Squat",
+                145.0,
+                4,
+                0,
+                LocalDate.of(2026, 7, 22)
+        );
+
+        PagedResponse<PersonalRecordResponse> response = new PagedResponse<>(
+                List.of(benchPress, squat),
+                0,
+                2,
+                5,
+                3,
+                true,
+                false
+        );
+
+        when(progressService.getPersonalRecords(0, 2))
+                .thenReturn(response);
+
+        mockMvc.perform(
+                        get("/api/progress/personal-records")
+                                .param("page", "0")
+                                .param("size", "2")
+                )
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].exerciseDefinitionId").value(1))
+                .andExpect(jsonPath("$.content[0].exerciseName").value("Bench Press"))
+                .andExpect(jsonPath("$.content[0].weight").value(105.0))
+                .andExpect(jsonPath("$.content[0].reps").value(3))
+                .andExpect(jsonPath("$.content[0].rir").value(0))
+                .andExpect(jsonPath("$.content[0].date").value("2026-07-22"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.first").value(true))
+                .andExpect(jsonPath("$.last").value(false));
+
+        verify(progressService).getPersonalRecords(0, 2);
+    }
+
+    @Test
     void getWorkoutHistory_ShouldReturnPagedHistoryResponse200() throws Exception {
 
         Long exerciseDefinitionId = 1L;
@@ -222,6 +279,8 @@ public class ProgressControllerTest {
         );
     }
 
+
+
     @Test
     @WithMockUser(username = "cosmin")
     void getSummary_ShouldReturnSummaryResponse() throws Exception {
@@ -260,6 +319,8 @@ public class ProgressControllerTest {
 
         verify(progressService).getSummary();
     }
+
+
 
 
 }

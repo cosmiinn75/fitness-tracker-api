@@ -8,15 +8,18 @@ import com.cosmin.fitness_tracker_api.Model.Workout;
 import com.cosmin.fitness_tracker_api.Model.WorkoutExercise;
 import com.cosmin.fitness_tracker_api.Repository.ExerciseDefinitionRepository;
 import com.cosmin.fitness_tracker_api.Repository.ExerciseSetRepository;
+import com.cosmin.fitness_tracker_api.Repository.Projection.PersonalRecordProjection;
 import com.cosmin.fitness_tracker_api.Repository.WorkoutExerciseRepository;
 import com.cosmin.fitness_tracker_api.Repository.WorkoutRepository;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +79,26 @@ public class ProgressService {
 
     }
 
+
+    @Transactional(readOnly = true)
+    public PagedResponse<PersonalRecordResponse> getPersonalRecords(Integer page, Integer size){
+        String username = getCurrentUsername();
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<PersonalRecordProjection> personalRecords = exerciseSetRepository.findBestExerciseSets(username,pageable);
+
+        Page<PersonalRecordResponse> responses = personalRecords.map(projection ->
+                new   PersonalRecordResponse(
+                        projection.getExerciseDefinitionId(),
+                        projection.getExerciseName(),
+                        projection.getWeight(),
+                        projection.getReps(),
+                        projection.getRir(),
+                        projection.getWorkoutDate()
+                ));
+
+       return PagedResponse.from(responses);
+    }
 
 
     public PersonalRecordResponse getPersonalRecordByExerciseDefinitionId(Long id) {
