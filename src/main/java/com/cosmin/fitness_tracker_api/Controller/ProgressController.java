@@ -129,6 +129,38 @@ public class ProgressController {
         );
     }
 
+
+    @Operation(
+            summary = "Get personal records",
+            description = "Returns all personal recordsof the authenticated . The set with the highest weight is selected, and at equal weight the set with the highest repetitions is selected"
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Personal records returned successfully"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid page or size number"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Missing or invalid JWT token"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Exercise definition or personal record not found"
+            )
+    })
+    @GetMapping("/personal-records")
+    public PagedResponse<PersonalRecordResponse> getPersonalRecords(
+            @RequestParam(name = "page", defaultValue = "0") @Min(0)int page,
+            @RequestParam(name = "size", defaultValue = "20") @Min(0) @Max(100) int size
+    )
+    {
+        return progressService.getPersonalRecords(page, size);
+    }
+
     @Operation(
             summary = "Get exercise history",
             description = "Returns the authenticated user's history for an exercise, optionally filtered by start and end date"
@@ -186,4 +218,7 @@ public class ProgressController {
     public SummaryResponse getSummary() {
         return progressService.getSummary();
     }
+
+
+
 }

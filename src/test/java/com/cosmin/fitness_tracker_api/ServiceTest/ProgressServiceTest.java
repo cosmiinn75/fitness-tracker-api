@@ -9,6 +9,7 @@ import com.cosmin.fitness_tracker_api.Exception.WorkoutNotFoundException;
 import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.ExerciseDefinitionRepository;
 import com.cosmin.fitness_tracker_api.Repository.ExerciseSetRepository;
+import com.cosmin.fitness_tracker_api.Repository.Projection.PersonalRecordProjection;
 import com.cosmin.fitness_tracker_api.Repository.WorkoutExerciseRepository;
 import com.cosmin.fitness_tracker_api.Repository.WorkoutRepository;
 import com.cosmin.fitness_tracker_api.Service.ProgressService;
@@ -353,6 +354,82 @@ public class ProgressServiceTest {
                 "No sets found for this exercise",
                 exception.getMessage()
         );
+    }
+
+    @Test
+    void getPersonalRecords_ShouldMapProjectionAndPreservePagination() {
+        mockAuthenticatedUser();
+
+        Pageable pageable = PageRequest.of(0, 2);
+
+        PersonalRecordProjection benchPress = mock(PersonalRecordProjection.class);
+        when(benchPress.getExerciseDefinitionId()).thenReturn(1L);
+        when(benchPress.getExerciseName()).thenReturn("Bench Press");
+        when(benchPress.getWeight()).thenReturn(105.0);
+        when(benchPress.getReps()).thenReturn(3);
+        when(benchPress.getRir()).thenReturn(0);
+        when(benchPress.getWorkoutDate()).thenReturn(LocalDate.of(2026, 7, 22));
+
+        PersonalRecordProjection squat = mock(PersonalRecordProjection.class);
+        when(squat.getExerciseDefinitionId()).thenReturn(2L);
+        when(squat.getExerciseName()).thenReturn("Squat");
+        when(squat.getWeight()).thenReturn(145.0);
+        when(squat.getReps()).thenReturn(4);
+        when(squat.getRir()).thenReturn(0);
+        when(squat.getWorkoutDate()).thenReturn(LocalDate.of(2026, 7, 22));
+
+        Page<PersonalRecordProjection> projectionPage = new PageImpl<>(
+                List.of(benchPress, squat),
+                pageable,
+                5
+        );
+
+        when(exerciseSetRepository.findBestExerciseSets("cosmin", pageable))
+                .thenReturn(projectionPage);
+
+        PagedResponse<PersonalRecordResponse> response =
+                progressService.getPersonalRecords(0, 2);
+
+        assertEquals(2, response.content().size());
+        assertEquals(0, response.page());
+        assertEquals(2, response.size());
+        assertEquals(5, response.totalElements());
+        assertEquals(3, response.totalPages());
+        assertTrue(response.first());
+        assertFalse(response.last());
+
+        PersonalRecordResponse firstRecord = response.content().getFirst();
+        assertEquals(1L, firstRecord.exerciseDefinitionId());
+        assertEquals("Bench Press", firstRecord.exerciseName());
+        assertEquals(105.0, firstRecord.weight());
+        assertEquals(3, firstRecord.reps());
+        assertEquals(0, firstRecord.rir());
+        assertEquals(LocalDate.of(2026, 7, 22), firstRecord.date());
+
+        verify(exerciseSetRepository)
+                .findBestExerciseSets("cosmin", pageable);
+    }
+
+    @Test
+    void getPersonalRecords_ShouldReturnEmptyPage_WhenUserHasNoSets() {
+        mockAuthenticatedUser();
+
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(exerciseSetRepository.findBestExerciseSets("cosmin", pageable))
+                .thenReturn(Page.empty(pageable));
+
+        PagedResponse<PersonalRecordResponse> response =
+                progressService.getPersonalRecords(0, 10);
+
+        assertTrue(response.content().isEmpty());
+        assertEquals(0, response.totalElements());
+        assertEquals(0, response.totalPages());
+        assertTrue(response.first());
+        assertTrue(response.last());
+
+        verify(exerciseSetRepository)
+                .findBestExerciseSets("cosmin", pageable);
     }
 
 
