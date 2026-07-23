@@ -1,21 +1,23 @@
 package com.cosmin.fitness_tracker_api.Service;
 
+import com.cosmin.fitness_tracker_api.DTO.PagedResponse;
 import com.cosmin.fitness_tracker_api.DTO.TrainingGoalRequest;
 import com.cosmin.fitness_tracker_api.DTO.TrainingGoalResponse;
 import com.cosmin.fitness_tracker_api.Enum.Status;
-import com.cosmin.fitness_tracker_api.Exception.ActiveTrainingGoalAlreadyExistsException;
-import com.cosmin.fitness_tracker_api.Exception.ExerciseDefinitionNotFoundException;
-import com.cosmin.fitness_tracker_api.Exception.UserNotAuthException;
+import com.cosmin.fitness_tracker_api.Exception.*;
 import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.ExerciseDefinitionRepository;
 import com.cosmin.fitness_tracker_api.Repository.TrainingGoalRepository;
 import com.cosmin.fitness_tracker_api.Repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 @Service
 public class TrainingGoalService {
@@ -34,7 +36,6 @@ public class TrainingGoalService {
     @Transactional
     public TrainingGoalResponse createTrainingGoal(TrainingGoalRequest request) {
         String username = getCurrentUsername();
-        LocalDate today = LocalDate.now();
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() ->
@@ -76,25 +77,87 @@ public class TrainingGoalService {
 
         TrainingGoal savedGoal = trainingGoalRepository.save(trainingGoal);
 
-        long daysLeft = ChronoUnit.DAYS.between(
-                today,
-                savedGoal.getTargetDate()
-        );
-
         return new TrainingGoalResponse(
+                trainingGoal.getId(),
                 savedGoal.getExerciseDefinition().getName(),
                 savedGoal.getTargetWeight(),
                 savedGoal.getTargetReps(),
                 savedGoal.getTargetDate(),
-                daysLeft
+                trainingGoal.getStatus()
         );
     }
 
+
+
     @Transactional
-    public void completeGoalsFromWorkout(Workout workout){
+    public PagedResponse<TrainingGoalResponse> getTrainingGoals(int page,int size) {
+
+        String username = getCurrentUsername();
+        Pageable pageable = PageRequest.of(page, size);
+
+
+        trainingGoalRepository.findByUserUsernameOrderByIdAsc(username)
+                .forEach(
+                        trainingGoal -> {
+                            boolean expired = LocalDate.now().isAfter(trainingGoal.getTargetDate());
+
+                            if(expired && trainingGoal.getStatus() == Status.ACTIVE) {
+                                trainingGoal.setStatus(Status.EXPIRED);
+                            }
+                        }
+                );
+
+
+        Page<TrainingGoalResponse> trainingGoalPage = trainingGoalRepository.findByUserUsernameOrderByIdAsc(username,pageable)
+                .map(
+                        trainingGoal -> new TrainingGoalResponse(
+                                trainingGoal.getId(),
+                                trainingGoal.getExerciseDefinition().getName(),
+                                trainingGoal.getTargetWeight(),
+                                trainingGoal.getTargetReps(),
+                                trainingGoal.getTargetDate(),
+                                trainingGoal.getStatus()
+                        )
+                );
+
+
+
+        return PagedResponse.from(trainingGoalPage);
+    }
+
+    @Transactional
+    public TrainingGoalResponse cancelTrainingGoal(Long trainingGoalId) {
+
+        TrainingGoal trainingGoal = trainingGoalRepository.findByUserUsernameAndId(getCurrentUsername(),trainingGoalId)
+                .orElseThrow(() -> new TrainingGoalNotFoundException("Training goal with id:" + trainingGoalId + " not found"));
+
+
+        if(trainingGoal.getStatus() != Status.ACTIVE || LocalDate.now().isAfter(trainingGoal.getTargetDate())) {
+            throw new InvalidTrainingGoalStatusException(
+                    "Only active, non-expired training goals can be cancelled"
+            );
+        }
+
+        trainingGoal.setStatus(Status.CANCELLED);
+        trainingGoalRepository.save(trainingGoal);
+
+        return new TrainingGoalResponse(
+                trainingGoalId,
+                trainingGoal.getExerciseDefinition().getName(),
+                trainingGoal.getTargetWeight(),
+                trainingGoal.getTargetReps(),
+                trainingGoal.getTargetDate(),
+                trainingGoal.getStatus()
+        );
+    }
+
+
+
+    @Transactional
+    public int completeGoalsFromWorkout(Workout workout){
 
         LocalDate workoutDate = workout.getDate();
-
+        int goalsCompleted = 0;
         for(WorkoutExercise workoutExercise : workout.getWorkoutExercises()){
             ExerciseDefinition exerciseDefinition = workoutExercise.getExerciseDefinition();
 
@@ -120,12 +183,13 @@ public class TrainingGoalService {
 
                 if(goalReached){
                     trainingGoal.setStatus(Status.COMPLETED);
+                    goalsCompleted++;
                     trainingGoalRepository.save(trainingGoal);
                 }
 
 
         }
-
+        return goalsCompleted;
     }
 
 

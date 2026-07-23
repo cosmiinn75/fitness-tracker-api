@@ -41,6 +41,17 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(TrainingGoalNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleTrainingGoalNotFoundException(
+            TrainingGoalNotFoundException e
+    ) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error", "Not Found");
+        response.put("message", e.getMessage());
+
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<Map<String, String>> handleInvalidCredentialsException(InvalidCredentialsException e) {
         Map<String, String> response = new HashMap<>();
@@ -72,6 +83,13 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(InvalidTrainingGoalStatusException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidTrainingGoalStatusException(InvalidTrainingGoalStatusException e) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error" , "Conflict");
+        response.put("message" , e.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
 
     @ExceptionHandler(NameAlreadyExistsException.class)
     public ResponseEntity<Map<String, String>> handleNameAlreadyExistsException(NameAlreadyExistsException e) {

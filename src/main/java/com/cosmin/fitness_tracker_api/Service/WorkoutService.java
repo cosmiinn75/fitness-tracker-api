@@ -24,18 +24,20 @@ public class WorkoutService {
     private final WorkoutExerciseRepository workoutExerciseRepository;
     private final ExerciseSetRepository exerciseSetRepository;
     private final UserRepository userRepository;
+    private final TrainingGoalService trainingGoalService;
 
 
-    public WorkoutService(ExerciseDefinitionRepository exerciseDefinitionRepository, WorkoutRepository workoutRepository, WorkoutExerciseRepository workoutExerciseRepository, ExerciseSetRepository exerciseSetRepository, UserRepository userRepository) {
+    public WorkoutService(ExerciseDefinitionRepository exerciseDefinitionRepository, WorkoutRepository workoutRepository, WorkoutExerciseRepository workoutExerciseRepository, ExerciseSetRepository exerciseSetRepository, UserRepository userRepository, TrainingGoalService trainingGoalService) {
         this.exerciseDefinitionRepository = exerciseDefinitionRepository;
         this.workoutRepository = workoutRepository;
         this.workoutExerciseRepository = workoutExerciseRepository;
         this.exerciseSetRepository = exerciseSetRepository;
         this.userRepository = userRepository;
+        this.trainingGoalService = trainingGoalService;
     }
 
     @Transactional
-    public WorkoutResponse createWorkout(WorkoutRequest request) {
+    public CreateWorkoutResponse createWorkout(WorkoutRequest request) {
         User currentUser = userRepository.findByUsername(getCurrentUsername())
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
@@ -46,8 +48,10 @@ public class WorkoutService {
         workout.setUser(currentUser);
 
         Workout savedWorkout = workoutRepository.save(workout);
+
         List<WorkoutExerciseResponse> exerciseResponses = createWorkoutExercisesFromRequest(savedWorkout,request.exerciseRequests());
-        return toWorkoutResponse(savedWorkout, exerciseResponses);
+        int goalsCompleted = trainingGoalService.completeGoalsFromWorkout(savedWorkout);
+        return toCreateWorkoutResponse(savedWorkout, exerciseResponses,goalsCompleted);
     }
 
 
@@ -110,30 +114,33 @@ public class WorkoutService {
     }
 
     @Transactional
-    public WorkoutResponse replaceWorkout(Long id , WorkoutRequest request) {
+    public WorkoutResponse replaceWorkout(Long id, WorkoutRequest request) {
         String currentUsername = getCurrentUsername();
 
-        Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername)
-                .orElseThrow(() -> new WorkoutNotFoundException("Workout not found"));
-
+        Workout workout = workoutRepository
+                .findByIdAndUserUsername(id, currentUsername)
+                .orElseThrow(() ->
+                        new WorkoutNotFoundException("Workout not found")
+                );
 
         workout.setWorkoutName(request.workoutName());
         workout.setDate(request.date());
 
-        List<WorkoutExercise> oldExercises =
-                workoutExerciseRepository.findByWorkoutOrderByExerciseNumberAsc(workout);
 
-        for(WorkoutExercise oldExercise: oldExercises) {
-            exerciseSetRepository.deleteByWorkoutExercise(oldExercise);
-        }
+        workout.getWorkoutExercises().clear();
 
-        workoutExerciseRepository.deleteByWorkout(workout);
+        workoutRepository.flush();
 
         List<WorkoutExerciseResponse> exerciseResponses =
-                createWorkoutExercisesFromRequest(workout,
-                                                request.exerciseRequests());
+                createWorkoutExercisesFromRequest(
+                        workout,
+                        request.exerciseRequests()
+                );
 
-        return toWorkoutResponse(workout,exerciseResponses);
+
+        trainingGoalService.completeGoalsFromWorkout(workout);
+
+        return toWorkoutResponse(workout, exerciseResponses);
     }
 
         @Transactional
@@ -429,7 +436,16 @@ public class WorkoutService {
 
 
 
-
+    private CreateWorkoutResponse toCreateWorkoutResponse(Workout workout,
+                                              List<WorkoutExerciseResponse> exerciseResponses,int goalsCompleted) {
+        return new CreateWorkoutResponse(
+                workout.getId(),
+                workout.getWorkoutName(),
+                workout.getDate(),
+                exerciseResponses,
+                goalsCompleted
+        );
+    }
 
     private WorkoutResponse toWorkoutResponse(Workout workout,
                                               List<WorkoutExerciseResponse> exerciseResponses) {
@@ -478,6 +494,9 @@ public class WorkoutService {
             workoutExercise.setExerciseNumber(i+1);
             workoutExercise.setExerciseDefinition(exerciseDefinition);
             WorkoutExercise savedWorkoutExercise = workoutExerciseRepository.save(workoutExercise);
+
+            workout.getWorkoutExercises().add(savedWorkoutExercise);
+
             List<SetRequest>  setRequests = exerciseRequest.setRequests();
 
             List<SetResponse> setResponses = createExerciseSetsFromRequest(savedWorkoutExercise, setRequests);
@@ -501,6 +520,9 @@ public class WorkoutService {
             exerciseSet.setRir(setRequest.rir());
             exerciseSet.setWeight(setRequest.weight());
             ExerciseSet savedSet = exerciseSetRepository.save(exerciseSet);
+
+            workoutExercise.getExerciseSets().add(savedSet);
+
             setResponses.add(toSetResponse(savedSet));
 
         }

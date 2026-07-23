@@ -225,7 +225,7 @@ public class WorkoutController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public WorkoutResponse createWorkout(
+    public CreateWorkoutResponse createWorkout(
             @Valid @RequestBody WorkoutRequest workoutRequest
     ) {
         return workoutService.createWorkout(workoutRequest);
