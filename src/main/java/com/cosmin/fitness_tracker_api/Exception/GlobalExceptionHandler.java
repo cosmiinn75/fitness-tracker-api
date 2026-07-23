@@ -80,6 +80,15 @@ public class GlobalExceptionHandler {
         response.put("message" , e.getMessage());
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
+    @ExceptionHandler(ActiveTrainingGoalAlreadyExistsException.class)
+    public ResponseEntity<Map<String, String>> handleActiveTrainingGoalAlreadyExistsException(ActiveTrainingGoalAlreadyExistsException e) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error" , "Conflict");
+        response.put("message" , e.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+
 
     @ExceptionHandler(UserNotAuthException.class)
     public ResponseEntity<Map<String, String>> handleUserNotAuthException(UserNotAuthException e) {
