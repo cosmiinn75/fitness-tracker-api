@@ -182,6 +182,7 @@ The initial migration is:
 
 ```text
 V1__create_initial_schema.sql
+V2__add_database_indexes.sql
 ```
 
 It creates the following tables:
@@ -834,7 +835,6 @@ Production deployments should use HTTPS, dedicated database credentials, a long 
 
 ## Roadmap
 
-- Add Flyway V2 constraints and database indexes
 - Use Testcontainers for isolated integration-test databases
 - Add JaCoCo coverage reporting
 - Deploy the API to a public cloud platform
