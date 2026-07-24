@@ -214,11 +214,12 @@ public class WorkoutControllerTest {
     @Test
     void createWorkout_ShouldCreateWorkoutResponse() throws Exception {
         List<WorkoutExerciseResponse> exerciseResponseList = new ArrayList<>();
-        WorkoutResponse workoutResponse = new WorkoutResponse(
+        CreateWorkoutResponse workoutResponse = new CreateWorkoutResponse(
                 1L,
                 "Pull",
                 LocalDate.of(2026, 7, 5),
-                exerciseResponseList
+                exerciseResponseList,
+                0
         );
 
         when(workoutService.createWorkout(any(WorkoutRequest.class))).thenReturn(workoutResponse);
@@ -253,7 +254,8 @@ public class WorkoutControllerTest {
                 .andExpect(jsonPath("$.workoutName").value("Pull"))
                 .andExpect(jsonPath("$.date").value("2026-07-05"))
                 .andExpect(jsonPath("$.exerciseResponses").isArray())
-                .andExpect(jsonPath("$.exerciseResponses").isEmpty());
+                .andExpect(jsonPath("$.exerciseResponses").isEmpty())
+                .andExpect(jsonPath("$.goalsCompleted").value(0));
 
         verify(workoutService).createWorkout(any());
 

@@ -14,6 +14,7 @@ import com.cosmin.fitness_tracker_api.Repository.ExerciseSetRepository;
 import com.cosmin.fitness_tracker_api.Repository.UserRepository;
 import com.cosmin.fitness_tracker_api.Repository.WorkoutExerciseRepository;
 import com.cosmin.fitness_tracker_api.Repository.WorkoutRepository;
+import com.cosmin.fitness_tracker_api.Service.TrainingGoalService;
 import com.cosmin.fitness_tracker_api.Service.WorkoutService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,9 @@ public class WorkoutServiceTests {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private TrainingGoalService trainingGoalService;
 
     @InjectMocks
     private WorkoutService workoutService;
@@ -110,13 +114,14 @@ public class WorkoutServiceTests {
                 });
 
 
-        WorkoutResponse response = workoutService.createWorkout(workoutRequest);
+        CreateWorkoutResponse response = workoutService.createWorkout(workoutRequest);
 
 
         assertEquals(1L, response.id());
         assertEquals("push", response.workoutName());
         assertEquals(LocalDate.of(2025, 2, 10), response.date());
         assertEquals(1, response.exerciseResponses().size());
+        assertEquals(0,response.goalsCompleted());
 
         WorkoutExerciseResponse exerciseResponse = response.exerciseResponses().getFirst();
 

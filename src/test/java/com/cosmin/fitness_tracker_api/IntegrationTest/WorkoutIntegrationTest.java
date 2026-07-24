@@ -3,6 +3,7 @@ package com.cosmin.fitness_tracker_api.IntegrationTest;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.*;
+import com.cosmin.fitness_tracker_api.Service.TrainingGoalService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,12 +59,20 @@ public class WorkoutIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private TrainingGoalRepository trainingGoalRepository;
+
+    @Autowired
+    private TrainingGoalService trainingGoalService;
+
     @BeforeEach
     void setup() {
-
         exerciseSetRepository.deleteAll();
         workoutExerciseRepository.deleteAll();
         workoutRepository.deleteAll();
+
+        trainingGoalRepository.deleteAll();
+
         exerciseDefinitionRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
