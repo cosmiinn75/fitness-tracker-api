@@ -15,9 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDate;
-import java.util.List;
 
 @Service
 public class TrainingGoalService {
@@ -94,20 +92,6 @@ public class TrainingGoalService {
 
         String username = getCurrentUsername();
         Pageable pageable = PageRequest.of(page, size);
-
-
-        trainingGoalRepository.findByUserUsernameOrderByIdAsc(username)
-                .forEach(
-                        trainingGoal -> {
-                            boolean expired = LocalDate.now().isAfter(trainingGoal.getTargetDate());
-
-                            if(expired && trainingGoal.getStatus() == Status.ACTIVE) {
-                                trainingGoal.setStatus(Status.EXPIRED);
-                            }
-                        }
-                );
-
-
         Page<TrainingGoalResponse> trainingGoalPage = trainingGoalRepository.findByUserUsernameOrderByIdAsc(username,pageable)
                 .map(
                         trainingGoal -> new TrainingGoalResponse(

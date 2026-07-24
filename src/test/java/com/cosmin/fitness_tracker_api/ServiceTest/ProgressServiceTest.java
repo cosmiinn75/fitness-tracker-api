@@ -14,6 +14,7 @@ import com.cosmin.fitness_tracker_api.Repository.WorkoutExerciseRepository;
 import com.cosmin.fitness_tracker_api.Repository.WorkoutRepository;
 import com.cosmin.fitness_tracker_api.Service.ProgressService;
 import org.jspecify.annotations.NonNull;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -705,6 +706,11 @@ public class ProgressServiceTest {
                 Collections.emptyList()
         );
         SecurityContextHolder.getContext().setAuthentication(authToken);
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
 }
