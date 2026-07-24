@@ -29,12 +29,18 @@ public class JWTFilter extends OncePerRequestFilter {
         String authorizationHeader = request.getHeader("Authorization");
         String username = null;
         String token = null;
+
+
         if(authorizationHeader != null && authorizationHeader.startsWith("Bearer ")){
             token = authorizationHeader.substring(7);
             try{
             username = jwtUtil.extractEmail(token);}
             catch(Exception e){
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            SecurityContextHolder.clearContext();
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED,
+                    "Invalid or expired token");
+
+            return;
             }
         }
 
