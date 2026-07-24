@@ -7,9 +7,7 @@ import com.cosmin.fitness_tracker_api.DTO.TrainingGoalResponse;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import com.cosmin.fitness_tracker_api.Enum.Status;
 import com.cosmin.fitness_tracker_api.Exception.*;
-import com.cosmin.fitness_tracker_api.Model.ExerciseDefinition;
-import com.cosmin.fitness_tracker_api.Model.TrainingGoal;
-import com.cosmin.fitness_tracker_api.Model.User;
+import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.ExerciseDefinitionRepository;
 import com.cosmin.fitness_tracker_api.Repository.TrainingGoalRepository;
 import com.cosmin.fitness_tracker_api.Repository.UserRepository;
@@ -305,6 +303,102 @@ public class TrainingGoalServiceTest {
                 .findByUserUsernameAndId("cosmin", 99L);
     }
 
+    @Test
+    void completeGoalsFromWorkout_WhenOneSetReachesBothTargets_ShouldCompleteGoal() {
+        mockAuthenticatedUser();
+
+        ExerciseDefinition exerciseDefinition = exerciseDefinition(1L);
+        TrainingGoal trainingGoal = activeGoal(exerciseDefinition);
+
+        Workout workout = workout(
+                LocalDate.of(2026, 7, 24),
+                exerciseDefinition,
+                exerciseSet(100.0, 5)
+        );
+
+        when(trainingGoalRepository
+                .findByUserUsernameAndExerciseDefinitionIdAndStatus(
+                        "cosmin",
+                        1L,
+                        Status.ACTIVE
+                ))
+                .thenReturn(Optional.of(trainingGoal));
+
+        int goalsCompleted =
+                trainingGoalService.completeGoalsFromWorkout(workout);
+
+        assertEquals(1, goalsCompleted);
+        assertEquals(Status.COMPLETED, trainingGoal.getStatus());
+
+        verify(trainingGoalRepository).save(trainingGoal);
+    }
+
+    @Test
+    void completeGoalsFromWorkout_WhenTargetsAreReachedByDifferentSets_ShouldNotCompleteGoal() {
+        mockAuthenticatedUser();
+
+        ExerciseDefinition exerciseDefinition = exerciseDefinition(1L);
+        TrainingGoal trainingGoal = activeGoal(exerciseDefinition);
+
+        Workout workout = workout(
+                LocalDate.of(2026, 7, 24),
+                exerciseDefinition,
+                exerciseSet(105.0, 4),
+                exerciseSet(95.0, 6)
+        );
+
+        when(trainingGoalRepository
+                .findByUserUsernameAndExerciseDefinitionIdAndStatus(
+                        "cosmin",
+                        1L,
+                        Status.ACTIVE
+                ))
+                .thenReturn(Optional.of(trainingGoal));
+
+        int goalsCompleted =
+                trainingGoalService.completeGoalsFromWorkout(workout);
+
+        assertEquals(0, goalsCompleted);
+        assertEquals(Status.ACTIVE, trainingGoal.getStatus());
+
+        verify(trainingGoalRepository, never())
+                .save(any(TrainingGoal.class));
+    }
+
+    @Test
+    void completeGoalsFromWorkout_WhenWorkoutPredatesGoal_ShouldNotCompleteGoal() {
+        mockAuthenticatedUser();
+
+        ExerciseDefinition exerciseDefinition = exerciseDefinition(1L);
+        TrainingGoal trainingGoal = activeGoal(exerciseDefinition);
+
+        trainingGoal.setCreatedAt(LocalDate.of(2026, 7, 25));
+
+        Workout workout = workout(
+                LocalDate.of(2026, 7, 24),
+                exerciseDefinition,
+                exerciseSet(110.0, 8)
+        );
+
+        when(trainingGoalRepository
+                .findByUserUsernameAndExerciseDefinitionIdAndStatus(
+                        "cosmin",
+                        1L,
+                        Status.ACTIVE
+                ))
+                .thenReturn(Optional.of(trainingGoal));
+
+        int goalsCompleted =
+                trainingGoalService.completeGoalsFromWorkout(workout);
+
+        assertEquals(0, goalsCompleted);
+        assertEquals(Status.ACTIVE, trainingGoal.getStatus());
+
+        verify(trainingGoalRepository, never())
+                .save(any(TrainingGoal.class));
+    }
+
+
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
@@ -321,4 +415,53 @@ public class TrainingGoalServiceTest {
         SecurityContextHolder.getContext().setAuthentication(authToken);
     }
 
+    private ExerciseDefinition exerciseDefinition(Long id) {
+        ExerciseDefinition exerciseDefinition = new ExerciseDefinition();
+        exerciseDefinition.setId(id);
+        exerciseDefinition.setName("Bench Press");
+
+        return exerciseDefinition;
+    }
+
+    private TrainingGoal activeGoal(
+            ExerciseDefinition exerciseDefinition
+    ) {
+        TrainingGoal trainingGoal = new TrainingGoal();
+
+        trainingGoal.setExerciseDefinition(exerciseDefinition);
+        trainingGoal.setCreatedAt(LocalDate.of(2026, 7, 1));
+        trainingGoal.setTargetDate(LocalDate.of(2026, 8, 1));
+        trainingGoal.setTargetWeight(100.0);
+        trainingGoal.setTargetReps(5);
+        trainingGoal.setStatus(Status.ACTIVE);
+
+        return trainingGoal;
+    }
+
+    private Workout workout(
+            LocalDate date,
+            ExerciseDefinition exerciseDefinition,
+            ExerciseSet... exerciseSets
+    ) {
+        WorkoutExercise workoutExercise = new WorkoutExercise();
+
+        workoutExercise.setExerciseDefinition(exerciseDefinition);
+        workoutExercise.setExerciseSets(List.of(exerciseSets));
+
+        Workout workout = new Workout();
+
+        workout.setDate(date);
+        workout.setWorkoutExercises(List.of(workoutExercise));
+
+        return workout;
+    }
+
+    private ExerciseSet exerciseSet(double weight, int reps) {
+        ExerciseSet exerciseSet = new ExerciseSet();
+
+        exerciseSet.setWeight(weight);
+        exerciseSet.setReps(reps);
+
+        return exerciseSet;
+    }
 }

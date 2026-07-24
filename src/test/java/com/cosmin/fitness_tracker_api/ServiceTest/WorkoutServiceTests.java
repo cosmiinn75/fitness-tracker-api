@@ -113,6 +113,9 @@ public class WorkoutServiceTests {
                     return exerciseSet;
                 });
 
+        when(trainingGoalService
+                .completeGoalsFromWorkout(any(Workout.class)))
+                .thenReturn(2);
 
         CreateWorkoutResponse response = workoutService.createWorkout(workoutRequest);
 
@@ -121,7 +124,7 @@ public class WorkoutServiceTests {
         assertEquals("push", response.workoutName());
         assertEquals(LocalDate.of(2025, 2, 10), response.date());
         assertEquals(1, response.exerciseResponses().size());
-        assertEquals(0,response.goalsCompleted());
+        assertEquals(2, response.goalsCompleted());
 
         WorkoutExerciseResponse exerciseResponse = response.exerciseResponses().getFirst();
 
@@ -143,6 +146,8 @@ public class WorkoutServiceTests {
         verify(workoutRepository).save(any(Workout.class));
         verify(workoutExerciseRepository).save(any(WorkoutExercise.class));
         verify(exerciseSetRepository, times(2)).save(any(ExerciseSet.class));
+        verify(trainingGoalService)
+                .completeGoalsFromWorkout(any(Workout.class));
     }
 
     @Test

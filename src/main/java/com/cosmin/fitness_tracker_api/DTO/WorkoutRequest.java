@@ -17,6 +17,7 @@ public record WorkoutRequest(
 
         @PastOrPresent
         LocalDate date,
+
         @NotEmpty
         List<@Valid WorkoutExerciseRequest> exerciseRequests
 ) {

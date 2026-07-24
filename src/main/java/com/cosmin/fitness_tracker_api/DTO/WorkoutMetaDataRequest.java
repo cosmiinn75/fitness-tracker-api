@@ -10,6 +10,7 @@ public record WorkoutMetaDataRequest(
         String workoutName,
 
         @NotNull
+        @PastOrPresent
         LocalDate date
 ) {
 }
