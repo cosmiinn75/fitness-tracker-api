@@ -288,7 +288,7 @@ public class WorkoutIntegrationTest {
                         )
                 )
                 .andDo(print())
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
 
