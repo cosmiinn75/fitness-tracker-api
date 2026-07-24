@@ -14,6 +14,7 @@ public record WorkoutExerciseRequest(
         Long exerciseDefinitionId,
 
         @NotEmpty
+        @NotNull
         List<@Valid SetRequest> setRequests
 ) {
 }
