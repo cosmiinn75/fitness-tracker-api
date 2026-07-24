@@ -10,6 +10,9 @@ public record DuplicateWorkoutRequest(
         @NotNull
         @PastOrPresent
         LocalDate date,
-        @Size(min = 2 , max = 50) String workoutName
+
+        @NotNull
+        @Size(min = 2 , max = 50)
+        String workoutName
         ) {
 }

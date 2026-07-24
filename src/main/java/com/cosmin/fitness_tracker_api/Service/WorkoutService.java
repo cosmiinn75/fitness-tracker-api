@@ -106,8 +106,14 @@ public class WorkoutService {
 
         Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername).orElseThrow(() -> new WorkoutNotFoundException("Workout not found"));
 
-        workout.setDate(request.date());
-        workout.setWorkoutName(request.workoutName());
+
+        if(request.workoutName() != null) {
+            workout.setWorkoutName(request.workoutName());
+        }
+
+        if(request.date() != null) {
+            workout.setDate(request.date());
+        }
 
 
         trainingGoalService.completeGoalsFromWorkout(workout);

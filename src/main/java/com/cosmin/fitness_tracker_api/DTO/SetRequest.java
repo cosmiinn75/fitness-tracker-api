@@ -17,6 +17,7 @@ public record SetRequest(
 
         @Min(0)
         @Max(5)
+        @NotNull
         Integer rir
 ) {
 }
