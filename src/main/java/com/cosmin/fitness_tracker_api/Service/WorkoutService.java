@@ -109,6 +109,8 @@ public class WorkoutService {
         workout.setDate(request.date());
         workout.setWorkoutName(request.workoutName());
 
+
+        trainingGoalService.completeGoalsFromWorkout(workout);
         return toWorkoutResponse(workoutRepository.save(workout));
 
     }
@@ -166,6 +168,8 @@ public class WorkoutService {
             if (request.rir() != null) {
                 exerciseSet.setRir(request.rir());
             }
+            trainingGoalService.completeGoalsFromWorkout(workout);
+
             return toWorkoutResponse(workout);
         }
 
@@ -198,6 +202,8 @@ public class WorkoutService {
                             );
 
             workoutExercise.setExerciseDefinition(newExerciseDefinition);
+
+            trainingGoalService.completeGoalsFromWorkout(workout);
 
             return toWorkoutResponse(workout);
         }
@@ -259,6 +265,7 @@ public class WorkoutService {
             exerciseSets.add(newSet);
             exerciseSetRepository.save(newSet);
 
+            trainingGoalService.completeGoalsFromWorkout(workout);
             return toWorkoutResponse(workout);
         }
 
@@ -345,6 +352,7 @@ public class WorkoutService {
                 workoutExercise.getExerciseSets()
         );
 
+        trainingGoalService.completeGoalsFromWorkout(workout);
         return toWorkoutResponse(workout);
     }
 
@@ -429,6 +437,7 @@ public class WorkoutService {
 
         workoutRepository.save(newWorkout);
 
+        trainingGoalService.completeGoalsFromWorkout(newWorkout);
         return toWorkoutResponse(newWorkout);
     }
 
