@@ -1,18 +1,15 @@
 package com.cosmin.fitness_tracker_api.Repository;
 
+import com.cosmin.fitness_tracker_api.Model.ResetToken;
 import com.cosmin.fitness_tracker_api.Model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
-
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, Long> {
-    Optional<User> findByUsername(String username);
+public interface ResetTokenRepository extends JpaRepository<ResetToken, Long> {
+    void deleteAllByUser(User user);
 
-    boolean existsByUsername(String username);
-    boolean existsByEmail(String email);
-
-   Optional<User> findByEmail(String email);
+    Optional<ResetToken> findByResetToken(String resetToken);
 }
