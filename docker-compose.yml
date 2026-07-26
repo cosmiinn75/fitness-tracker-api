@@ -16,11 +16,24 @@ services:
       - fitness_tracker_mysql_data:/var/lib/mysql
 
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD}"
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: mailpit
+    restart: unless-stopped
+
+    ports:
+      - "1025:1025"
+      - "8025:8025"
 
   app:
     build: .
@@ -30,6 +43,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
     ports:
       - "8080:8080"
@@ -39,7 +54,13 @@ services:
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: 1025
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
 
 volumes:
   fitness_tracker_mysql_data:
