@@ -2,6 +2,7 @@ package com.cosmin.fitness_tracker_api.Service;
 
 
 import com.cosmin.fitness_tracker_api.DTO.*;
+import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Exception.*;
 import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.*;
@@ -198,7 +199,7 @@ public class WorkoutService {
 
             ExerciseDefinition newExerciseDefinition =
                     exerciseDefinitionRepository
-                            .findById(request.exerciseDefinitionId())
+                            .findByIdAccessible(request.exerciseDefinitionId(),currentUsername,ExerciseType.SYSTEM)
                             .orElseThrow(() ->
                                     new ExerciseDefinitionNotFoundException(
                                             "Exercise definition with id: "
@@ -317,7 +318,7 @@ public class WorkoutService {
 
         ExerciseDefinition exerciseDefinition =
                 exerciseDefinitionRepository
-                        .findById(exerciseRequest.exerciseDefinitionId())
+                        .findByIdAccessible(exerciseRequest.exerciseDefinitionId(),getCurrentUsername(),ExerciseType.SYSTEM)
                         .orElseThrow(() ->
                                 new ExerciseDefinitionNotFoundException(
                                         "Exercise definition with id: "
@@ -433,8 +434,14 @@ public class WorkoutService {
         List<WorkoutExercise> newWorkoutExercises = new ArrayList<>();
         for (WorkoutExercise workoutExercise : workoutExercises) {
 
-            WorkoutExercise newWorkoutExercise = getWorkoutExercise(workoutExercise, newWorkout);
+            ExerciseDefinition accessibleExerciseDefinition =
+                    exerciseDefinitionRepository.findByIdAccessible(workoutExercise.getExerciseDefinition().getId(),
+                            getCurrentUsername(),
+                            ExerciseType.SYSTEM)
+                            .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Workout contains an archived or inaccessible exercise definition"));
 
+            WorkoutExercise newWorkoutExercise = getWorkoutExercise(workoutExercise, newWorkout);
+            newWorkoutExercise.setExerciseDefinition(accessibleExerciseDefinition);
             newWorkoutExercises.add(newWorkoutExercise);
 
         }
@@ -501,7 +508,7 @@ public class WorkoutService {
 
 
             ExerciseDefinition exerciseDefinition =
-                    exerciseDefinitionRepository.findById(exerciseRequest.exerciseDefinitionId())
+                    exerciseDefinitionRepository.findByIdAccessible(exerciseRequest.exerciseDefinitionId(),getCurrentUsername(), ExerciseType.SYSTEM)
                             .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Exercise definition not found"));
 
             WorkoutExercise workoutExercise = new WorkoutExercise();

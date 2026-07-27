@@ -1,5 +1,6 @@
 package com.cosmin.fitness_tracker_api.IntegrationTest;
 
+import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.*;
@@ -81,6 +82,9 @@ public class WorkoutIntegrationTest extends AbstractIntegrationTest {
         ExerciseDefinition exerciseDefinition = new ExerciseDefinition();
         exerciseDefinition.setName("Bench Press");
         exerciseDefinition.setMuscleGroup(MuscleGroup.CHEST);
+        exerciseDefinition.setExerciseType(ExerciseType.SYSTEM);
+        exerciseDefinition.setArchived(false);
+        exerciseDefinition.setNormalizedName("bench press");
 
         ExerciseDefinition savedExerciseDefinition =
                 exerciseDefinitionRepository.saveAndFlush(exerciseDefinition);
@@ -138,6 +142,9 @@ public class WorkoutIntegrationTest extends AbstractIntegrationTest {
         ExerciseDefinition exerciseDefinition = new ExerciseDefinition();
         exerciseDefinition.setName("Bench Press");
         exerciseDefinition.setMuscleGroup(MuscleGroup.CHEST);
+        exerciseDefinition.setExerciseType(ExerciseType.SYSTEM);
+        exerciseDefinition.setArchived(false);
+        exerciseDefinition.setNormalizedName("bench press");
 
         ExerciseDefinition savedExerciseDefinition =
                 exerciseDefinitionRepository.saveAndFlush(exerciseDefinition);

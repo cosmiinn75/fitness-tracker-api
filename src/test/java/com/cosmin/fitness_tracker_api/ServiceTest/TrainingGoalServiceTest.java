@@ -4,6 +4,7 @@ package com.cosmin.fitness_tracker_api.ServiceTest;
 import com.cosmin.fitness_tracker_api.DTO.PagedResponse;
 import com.cosmin.fitness_tracker_api.DTO.TrainingGoalRequest;
 import com.cosmin.fitness_tracker_api.DTO.TrainingGoalResponse;
+import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import com.cosmin.fitness_tracker_api.Enum.Status;
 import com.cosmin.fitness_tracker_api.Exception.*;
@@ -74,7 +75,7 @@ public class TrainingGoalServiceTest {
     when(userRepository.findByUsername("cosmin")).thenReturn(Optional.of(user));
 
 
-    when(exerciseDefinitionRepository.findById(1L)).thenReturn(Optional.of(exerciseDefinition));
+    when(exerciseDefinitionRepository.findByIdAccessible(1L,"cosmin", ExerciseType.SYSTEM)).thenReturn(Optional.of(exerciseDefinition));
     when(trainingGoalRepository.existsByUserUsernameAndExerciseDefinitionIdAndStatus("cosmin",1L, Status.ACTIVE))
             .thenReturn(false);
 
@@ -105,7 +106,7 @@ public class TrainingGoalServiceTest {
 
 
         verify(userRepository).findByUsername("cosmin");
-        verify(exerciseDefinitionRepository).findById(1L);
+        verify(exerciseDefinitionRepository).findByIdAccessible(1L,"cosmin", ExerciseType.SYSTEM);
     }
 
 
@@ -127,7 +128,7 @@ public class TrainingGoalServiceTest {
         when(userRepository.findByUsername("cosmin"))
                 .thenReturn(Optional.of(user));
 
-        when(exerciseDefinitionRepository.findById(99L))
+        when(exerciseDefinitionRepository.findByIdAccessible(99L,"cosmin", ExerciseType.SYSTEM))
                 .thenReturn(Optional.empty());
 
         assertThrows(
@@ -135,7 +136,7 @@ public class TrainingGoalServiceTest {
                 () -> trainingGoalService.createTrainingGoal(request)
         );
 
-        verify(exerciseDefinitionRepository).findById(99L);
+        verify(exerciseDefinitionRepository).findByIdAccessible(99L,"cosmin", ExerciseType.SYSTEM);
         verify(trainingGoalRepository, never())
                 .save(any(TrainingGoal.class));
     }
@@ -163,7 +164,7 @@ public class TrainingGoalServiceTest {
         when(userRepository.findByUsername("cosmin"))
                 .thenReturn(Optional.of(user));
 
-        when(exerciseDefinitionRepository.findById(1L))
+        when(exerciseDefinitionRepository.findByIdAccessible(1L,"cosmin", ExerciseType.SYSTEM))
                 .thenReturn(Optional.of(exerciseDefinition));
 
         when(trainingGoalRepository
