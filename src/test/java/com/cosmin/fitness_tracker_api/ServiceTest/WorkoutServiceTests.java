@@ -1,6 +1,7 @@
 package com.cosmin.fitness_tracker_api.ServiceTest;
 
 import com.cosmin.fitness_tracker_api.DTO.*;
+import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import com.cosmin.fitness_tracker_api.Exception.ExerciseDefinitionNotFoundException;
 import com.cosmin.fitness_tracker_api.Exception.WorkoutNotFoundException;
@@ -89,7 +90,7 @@ public class WorkoutServiceTests {
         when(userRepository.findByUsername("cosmin"))
                 .thenReturn(Optional.of(user));
 
-        when(exerciseDefinitionRepository.findById(1L))
+        when(exerciseDefinitionRepository.findByIdAccessible(1L,"cosmin", ExerciseType.SYSTEM))
                 .thenReturn(Optional.of(exerciseDefinition));
 
         when(workoutRepository.save(any(Workout.class)))
@@ -142,7 +143,7 @@ public class WorkoutServiceTests {
         assertEquals(2, firstSet.rir());
 
         verify(userRepository).findByUsername("cosmin");
-        verify(exerciseDefinitionRepository).findById(1L);
+        verify(exerciseDefinitionRepository).findByIdAccessible(1L,"cosmin", ExerciseType.SYSTEM);
         verify(workoutRepository).save(any(Workout.class));
         verify(workoutExerciseRepository).save(any(WorkoutExercise.class));
         verify(exerciseSetRepository, times(2)).save(any(ExerciseSet.class));
@@ -176,17 +177,17 @@ public class WorkoutServiceTests {
         when(userRepository.findByUsername("cosmin"))
                 .thenReturn(Optional.of(user));
 
-        when(exerciseDefinitionRepository.findById(1L))
+        when(exerciseDefinitionRepository.findByIdAccessible(1L,"cosmin", ExerciseType.SYSTEM))
                 .thenReturn(Optional.empty());
 
-        // Act + Assert
+
         assertThrows(
                 ExerciseDefinitionNotFoundException.class,
                 () -> workoutService.createWorkout(workoutRequest)
         );
 
         verify(userRepository).findByUsername("cosmin");
-        verify(exerciseDefinitionRepository).findById(1L);
+        verify(exerciseDefinitionRepository).findByIdAccessible(1L,"cosmin", ExerciseType.SYSTEM);
 
         verify(workoutExerciseRepository, never()).save(any(WorkoutExercise.class));
         verify(exerciseSetRepository, never()).save(any(ExerciseSet.class));
@@ -398,7 +399,7 @@ public class WorkoutServiceTests {
         when(workoutRepository.findByIdAndUserUsername(workoutId, "cosmin"))
                 .thenReturn(Optional.of(workout));
 
-        when(exerciseDefinitionRepository.findById(newExerciseDefinitionId))
+        when(exerciseDefinitionRepository.findByIdAccessible(newExerciseDefinitionId,"cosmin",ExerciseType.SYSTEM))
                 .thenReturn(Optional.of(newExerciseDefinition));
 
         when(workoutExerciseRepository
@@ -440,7 +441,7 @@ public class WorkoutServiceTests {
                 .findByIdAndUserUsername(workoutId, "cosmin");
 
         verify(exerciseDefinitionRepository)
-                .findById(newExerciseDefinitionId);
+                .findByIdAccessible(newExerciseDefinitionId,"cosmin",ExerciseType.SYSTEM);
     }
 
     @Test
@@ -457,6 +458,8 @@ public class WorkoutServiceTests {
         exerciseDefinition.setId(1L);
         exerciseDefinition.setName("Bench Press");
         exerciseDefinition.setMuscleGroup(MuscleGroup.CHEST);
+        exerciseDefinition.setArchived(false);
+        exerciseDefinition.setExerciseType(ExerciseType.SYSTEM);
 
         Workout workout = new Workout();
         workout.setId(workoutId);
@@ -503,6 +506,8 @@ public class WorkoutServiceTests {
                     return savedExercise.getExerciseSets();
                 });
 
+        when(exerciseDefinitionRepository.findByIdAccessible(1L,"cosmin",ExerciseType.SYSTEM))
+                .thenReturn(Optional.of(exerciseDefinition));
 
 
         WorkoutResponse response = workoutService.duplicateWorkout(request,workoutId);

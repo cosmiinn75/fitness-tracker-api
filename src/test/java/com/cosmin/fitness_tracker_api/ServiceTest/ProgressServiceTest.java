@@ -1,6 +1,7 @@
 package com.cosmin.fitness_tracker_api.ServiceTest;
 
 import com.cosmin.fitness_tracker_api.DTO.*;
+import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import com.cosmin.fitness_tracker_api.Exception.ExerciseDefinitionNotFoundException;
 import com.cosmin.fitness_tracker_api.Exception.InvalidDateRangeException;
@@ -219,7 +220,7 @@ public class ProgressServiceTest {
                 LocalDate.of(2026, 7, 12)
         );
 
-        when(exerciseDefinitionRepository.findById(exerciseDefinitionId))
+        when(exerciseDefinitionRepository.findByIdAccessible(exerciseDefinitionId,"cosmin", ExerciseType.SYSTEM))
                 .thenReturn(Optional.of(exerciseDefinition));
 
         when(exerciseSetRepository
@@ -288,7 +289,7 @@ public class ProgressServiceTest {
                 LocalDate.of(2026, 7, 12)
         );
 
-        when(exerciseDefinitionRepository.findById(exerciseDefinitionId))
+        when(exerciseDefinitionRepository.findByIdAccessible(exerciseDefinitionId,"cosmin", ExerciseType.SYSTEM))
                 .thenReturn(Optional.of(exerciseDefinition));
 
         when(exerciseSetRepository
@@ -313,7 +314,7 @@ public class ProgressServiceTest {
 
         Long exerciseDefinitionId = 1L;
 
-        when(exerciseDefinitionRepository.findById(exerciseDefinitionId))
+        when(exerciseDefinitionRepository.findByIdAccessible(exerciseDefinitionId,"cosmin", ExerciseType.SYSTEM))
                 .thenReturn(Optional.empty());
 
         assertThrows(
@@ -321,7 +322,7 @@ public class ProgressServiceTest {
                 () -> progressService.getPersonalRecordByExerciseDefinitionId(exerciseDefinitionId)
         );
 
-        verify(exerciseDefinitionRepository).findById(exerciseDefinitionId);
+        verify(exerciseDefinitionRepository).findByIdAccessible(exerciseDefinitionId,"cosmin", ExerciseType.SYSTEM);
 
         verifyNoInteractions(exerciseSetRepository);
     }
@@ -336,7 +337,7 @@ public class ProgressServiceTest {
         exerciseDefinition.setId(exerciseDefinitionId);
         exerciseDefinition.setName("Bench Press");
 
-        when(exerciseDefinitionRepository.findById(exerciseDefinitionId))
+        when(exerciseDefinitionRepository.findByIdAccessible(exerciseDefinitionId,"cosmin", ExerciseType.SYSTEM))
                 .thenReturn(Optional.of(exerciseDefinition));
 
         when(exerciseSetRepository
@@ -486,7 +487,7 @@ public class ProgressServiceTest {
         workout.setDate(LocalDate.of(2026, 7, 15));
 
 
-        when(exerciseDefinitionRepository.findById(exerciseDefinitionId)).thenReturn(Optional.of(exerciseDefinition));
+        when(exerciseDefinitionRepository.findByIdAccessible(exerciseDefinitionId,"cosmin", ExerciseType.SYSTEM)).thenReturn(Optional.of(exerciseDefinition));
 
         ExerciseSet exerciseSet = new ExerciseSet();
         exerciseSet.setId(1L);
@@ -562,8 +563,8 @@ public class ProgressServiceTest {
         assertEquals(5, setResponse.reps());
         assertEquals(1, setResponse.rir());
 
-        verify(exerciseDefinitionRepository)
-                .findById(exerciseDefinitionId);
+        verify(exerciseDefinitionRepository).findByIdAccessible
+                (exerciseDefinitionId,"cosmin", ExerciseType.SYSTEM);
 
         verify(workoutExerciseRepository)
                 .findHistoryByExerciseDefinitionIdAndWorkoutDate(
@@ -606,7 +607,7 @@ public class ProgressServiceTest {
         LocalDate startDate = LocalDate.of(2026, 7, 10);
         LocalDate endDate = LocalDate.of(2026, 7, 20);
 
-        when(exerciseDefinitionRepository.findById(exerciseDefinitionId))
+        when(exerciseDefinitionRepository.findByIdAccessible(exerciseDefinitionId,"cosmin", ExerciseType.SYSTEM))
                 .thenReturn(Optional.empty());
 
         assertThrows(
@@ -621,7 +622,7 @@ public class ProgressServiceTest {
         );
 
         verify(exerciseDefinitionRepository)
-                .findById(exerciseDefinitionId);
+                .findByIdAccessible(exerciseDefinitionId,"cosmin", ExerciseType.SYSTEM);
     }
 
     @Test

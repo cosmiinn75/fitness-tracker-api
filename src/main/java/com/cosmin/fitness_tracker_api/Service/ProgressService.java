@@ -1,6 +1,7 @@
 package com.cosmin.fitness_tracker_api.Service;
 
 import com.cosmin.fitness_tracker_api.DTO.*;
+import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Exception.*;
 import com.cosmin.fitness_tracker_api.Model.ExerciseDefinition;
 import com.cosmin.fitness_tracker_api.Model.ExerciseSet;
@@ -12,14 +13,13 @@ import com.cosmin.fitness_tracker_api.Repository.Projection.PersonalRecordProjec
 import com.cosmin.fitness_tracker_api.Repository.WorkoutExerciseRepository;
 import com.cosmin.fitness_tracker_api.Repository.WorkoutRepository;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -104,7 +104,7 @@ public class ProgressService {
     public PersonalRecordResponse getPersonalRecordByExerciseDefinitionId(Long id) {
         String username = getCurrentUsername();
 
-        ExerciseDefinition exerciseDefinition = exerciseDefinitionRepository.findById(id)
+        ExerciseDefinition exerciseDefinition = exerciseDefinitionRepository.findByIdAccessible(id,username, ExerciseType.SYSTEM)
                 .orElseThrow( () -> new ExerciseDefinitionNotFoundException("Exercise with id: " + id + " not found"));
 
         List<ExerciseSet> exerciseSets = exerciseSetRepository
@@ -168,7 +168,7 @@ public class ProgressService {
             }
         }
 
-        exerciseDefinitionRepository.findById(exerciseDefinitionId)
+        exerciseDefinitionRepository.findByIdAccessible(exerciseDefinitionId,username,ExerciseType.SYSTEM)
                 .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Exercise definition not found"));
 
         Page<WorkoutExerciseHistoryResponse> workoutExerciseHistoryResponses = workoutExerciseRepository.findHistoryByExerciseDefinitionIdAndWorkoutDate(

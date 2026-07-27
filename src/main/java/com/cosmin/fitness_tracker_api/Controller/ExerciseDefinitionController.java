@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -149,5 +150,14 @@ public class ExerciseDefinitionController {
                 id,
                 exerciseDefinitionRequest
         );
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<Void> archiveExercise(
+            @PathVariable @Positive Long id
+    ) {
+        exerciseDefinitionService.archiveExerciseDefinition(id);
+
+        return ResponseEntity.noContent().build();
     }
 }

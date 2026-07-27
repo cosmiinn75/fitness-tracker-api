@@ -3,6 +3,7 @@ package com.cosmin.fitness_tracker_api.Service;
 import com.cosmin.fitness_tracker_api.DTO.PagedResponse;
 import com.cosmin.fitness_tracker_api.DTO.TrainingGoalRequest;
 import com.cosmin.fitness_tracker_api.DTO.TrainingGoalResponse;
+import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.Status;
 import com.cosmin.fitness_tracker_api.Exception.*;
 import com.cosmin.fitness_tracker_api.Model.*;
@@ -41,7 +42,7 @@ public class TrainingGoalService {
 
 
         ExerciseDefinition exerciseDefinition =
-                exerciseDefinitionRepository.findById(request.exerciseDefinitionId())
+                exerciseDefinitionRepository.findByIdAccessible(request.exerciseDefinitionId(),getCurrentUsername(), ExerciseType.SYSTEM)
                         .orElseThrow(() ->
                                 new ExerciseDefinitionNotFoundException(
                                         "Exercise definition with id "

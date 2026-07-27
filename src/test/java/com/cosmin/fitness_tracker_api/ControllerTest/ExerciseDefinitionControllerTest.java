@@ -3,6 +3,7 @@ package com.cosmin.fitness_tracker_api.ControllerTest;
 import com.cosmin.fitness_tracker_api.Controller.ExerciseDefinitionController;
 import com.cosmin.fitness_tracker_api.DTO.ExerciseDefinitionRequest;
 import com.cosmin.fitness_tracker_api.DTO.ExerciseDefinitionResponse;
+import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import com.cosmin.fitness_tracker_api.Security.JWTFilter;
 import com.cosmin.fitness_tracker_api.Service.ExerciseDefinitionService;
@@ -49,7 +50,9 @@ public class ExerciseDefinitionControllerTest {
                 new ExerciseDefinitionResponse(
                         1L,
                         "Bench Press",
-                        MuscleGroup.CHEST
+                        MuscleGroup.CHEST,
+                        ExerciseType.SYSTEM,
+                        false
                 );
 
         List<ExerciseDefinitionResponse> response =
@@ -67,7 +70,9 @@ public class ExerciseDefinitionControllerTest {
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].id").value(1))
                 .andExpect(jsonPath("$[0].exerciseName").value("Bench Press"))
-                .andExpect(jsonPath("$[0].muscleGroup").value("CHEST"));
+                .andExpect(jsonPath("$[0].muscleGroup").value("CHEST"))
+                .andExpect(jsonPath("$[0].exerciseType").value(ExerciseType.SYSTEM.name()))
+                .andExpect(jsonPath("$[0].archived").value(false));
 
         verify(exerciseDefinitionService)
                 .findAllExerciseDefinitions();
@@ -79,7 +84,9 @@ public class ExerciseDefinitionControllerTest {
         ExerciseDefinitionResponse response = new ExerciseDefinitionResponse(
                 1L,
                 "Bench Press",
-                MuscleGroup.CHEST
+                MuscleGroup.CHEST,
+                ExerciseType.SYSTEM,
+                false
         );
 
         when(exerciseDefinitionService.findExerciseDefinitionById(eq(1L)))
@@ -92,7 +99,9 @@ public class ExerciseDefinitionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.exerciseName").value("Bench Press"))
-                .andExpect(jsonPath("$.muscleGroup").value("CHEST"));
+                .andExpect(jsonPath("$.muscleGroup").value("CHEST"))
+                .andExpect(jsonPath("$.exerciseType").value(ExerciseType.SYSTEM.name()))
+                .andExpect(jsonPath("$.archived").value(false));
 
         verify(exerciseDefinitionService).findExerciseDefinitionById(eq(1L));
 
@@ -105,7 +114,9 @@ public class ExerciseDefinitionControllerTest {
         ExerciseDefinitionResponse response = new  ExerciseDefinitionResponse(
                 1L,
                 "Bench Press",
-                MuscleGroup.CHEST
+                MuscleGroup.CHEST,
+                ExerciseType.SYSTEM,
+                false
         );
 
 
@@ -127,7 +138,9 @@ public class ExerciseDefinitionControllerTest {
                 .andDo(print())
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.exerciseName").value("Bench Press"))
-                .andExpect(jsonPath("$.muscleGroup").value("CHEST"));
+                .andExpect(jsonPath("$.muscleGroup").value("CHEST"))
+                .andExpect(jsonPath("$.exerciseType").value(ExerciseType.SYSTEM.name()))
+                .andExpect(jsonPath("$.archived").value(false));
 
         verify(exerciseDefinitionService).addExerciseDefinition(any(ExerciseDefinitionRequest.class));
 
@@ -139,7 +152,9 @@ public class ExerciseDefinitionControllerTest {
         ExerciseDefinitionResponse response = new  ExerciseDefinitionResponse(
                 1L,
                 "Bench Press",
-                MuscleGroup.CHEST
+                MuscleGroup.CHEST,
+                ExerciseType.SYSTEM,
+                false
         );
 
         when(exerciseDefinitionService.updateExerciseDefinition(eq(1L),any(ExerciseDefinitionRequest.class)))
@@ -162,7 +177,9 @@ public class ExerciseDefinitionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.exerciseName").value("Bench Press"))
-                .andExpect(jsonPath("$.muscleGroup").value("CHEST"));
+                .andExpect(jsonPath("$.muscleGroup").value("CHEST"))
+                .andExpect(jsonPath("$.exerciseType").value(ExerciseType.SYSTEM.name()))
+                .andExpect(jsonPath("$.archived").value(false));
 
         verify(exerciseDefinitionService).updateExerciseDefinition(eq(1L),any(ExerciseDefinitionRequest.class));
 

@@ -1,5 +1,6 @@
 package com.cosmin.fitness_tracker_api.IntegrationTest;
 
+import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.*;
@@ -183,6 +184,9 @@ class PersonalRecordRepositoryIntegrationTest extends AbstractIntegrationTest {
         ExerciseDefinition definition = new ExerciseDefinition();
         definition.setName(name);
         definition.setMuscleGroup(muscleGroup);
+        definition.setExerciseType(ExerciseType.SYSTEM);
+        definition.setArchived(false);
+        definition.setNormalizedName("bench press");
         return exerciseDefinitionRepository.saveAndFlush(definition);
     }
 
