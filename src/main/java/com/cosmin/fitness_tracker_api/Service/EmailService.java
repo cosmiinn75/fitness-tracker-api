@@ -36,5 +36,22 @@ public class EmailService {
         mailSender.send(message);
     }
 
+    public void sendConfirmationEmail(String email){
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(email);
+        message.setFrom("no-reply@fitness-tracker.local");
+
+        message.setSubject("Fitness Tracker - Confirmation");
+
+        message.setText("""
+        Your password has been successfully changed.
+
+        If you did not request this, please contact us.
+        """
+        );
+
+        mailSender.send(message);
+    }
+
 
 }

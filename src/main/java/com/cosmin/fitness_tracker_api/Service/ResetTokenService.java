@@ -11,9 +11,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.HexFormat;
 
 @Service
 public class ResetTokenService {
@@ -27,12 +31,14 @@ public class ResetTokenService {
             = Base64.getUrlEncoder().withoutPadding();
 
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenService refreshTokenService;
 
-    public ResetTokenService(ResetTokenRepository resetTokenRepository, UserRepository userRepository, EmailService emailService, PasswordEncoder passwordEncoder) {
+    public ResetTokenService(ResetTokenRepository resetTokenRepository, UserRepository userRepository, EmailService emailService, PasswordEncoder passwordEncoder, RefreshTokenService refreshTokenService) {
         this.resetTokenRepository = resetTokenRepository;
         this.userRepository = userRepository;
         this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
+        this.refreshTokenService = refreshTokenService;
     }
 
     public String generateResetToken() {
@@ -52,16 +58,17 @@ public class ResetTokenService {
         }
         resetTokenRepository.deleteAllByUser(user);
 
-        String token = generateResetToken();
+        String rawToken = generateResetToken();
+        String tokenHash = hashToken(rawToken);
 
         ResetToken resetToken = new ResetToken();
         resetToken.setUser(user);
-        resetToken.setResetToken(token);
+        resetToken.setResetToken(tokenHash);
         resetToken.setExpiresAt(LocalDateTime.now().plusMinutes(15));
 
         resetTokenRepository.save(resetToken);
 
-        emailService.sendPasswordResetEmail(user.getEmail(), token);
+        emailService.sendPasswordResetEmail(user.getEmail(), rawToken);
 
     }
 
@@ -71,7 +78,8 @@ public class ResetTokenService {
             throw new InvalidCredentialsException("Passwords don't match");
         }
 
-        ResetToken resetToken = resetTokenRepository.findByResetToken(request.token())
+        String tokenHash = hashToken(request.token());
+        ResetToken resetToken = resetTokenRepository.findByResetToken(tokenHash)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid or expired reset token"));
 
         if(resetToken.isExpired()){
@@ -86,8 +94,24 @@ public class ResetTokenService {
 
         user.setPassword(passwordEncoder.encode(request.newPassword()));
 
+        refreshTokenService.revokeAllTokensForUser(user);
+        emailService.sendConfirmationEmail(user.getEmail());
         resetTokenRepository.deleteAllByUser(user);
     }
 
+
+    private String hashToken(String token){
+        try{
+            MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+
+            byte[] hashBytes = messageDigest.digest(
+                    token.getBytes(StandardCharsets.UTF_8)
+            );
+
+            return HexFormat.of().formatHex(hashBytes);
+        } catch (NoSuchAlgorithmException exception){
+            throw new IllegalStateException("SHA-256 algorithm is not available",exception);
+        }
+    }
 
 }

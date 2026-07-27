@@ -82,6 +82,11 @@ public class RefreshTokenService {
     }
 
 
+    @Transactional
+    public void revokeAllTokensForUser(User user) {
+        refreshTokenRepository.findAllByUser(user)
+                .forEach(this::revokeRefreshToken);
+    }
 
 
 
