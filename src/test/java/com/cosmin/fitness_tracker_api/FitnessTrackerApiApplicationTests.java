@@ -1,12 +1,11 @@
 package com.cosmin.fitness_tracker_api;
 
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-@Disabled
-class FitnessTrackerApiApplicationTests {
+import com.cosmin.fitness_tracker_api.IntegrationTest.AbstractIntegrationTest;
+import org.junit.jupiter.api.Test;
+
+
+class FitnessTrackerApiApplicationTests extends AbstractIntegrationTest {
 
 	@Test
 	void contextLoads() {

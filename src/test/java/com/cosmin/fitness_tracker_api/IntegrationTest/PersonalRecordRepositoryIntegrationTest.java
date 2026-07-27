@@ -1,38 +1,20 @@
 package com.cosmin.fitness_tracker_api.IntegrationTest;
 
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
-import com.cosmin.fitness_tracker_api.Model.ExerciseDefinition;
-import com.cosmin.fitness_tracker_api.Model.ExerciseSet;
-import com.cosmin.fitness_tracker_api.Model.User;
-import com.cosmin.fitness_tracker_api.Model.Workout;
-import com.cosmin.fitness_tracker_api.Model.WorkoutExercise;
-import com.cosmin.fitness_tracker_api.Repository.ExerciseDefinitionRepository;
-import com.cosmin.fitness_tracker_api.Repository.ExerciseSetRepository;
-import com.cosmin.fitness_tracker_api.Repository.RefreshTokenRepository;
-import com.cosmin.fitness_tracker_api.Repository.UserRepository;
-import com.cosmin.fitness_tracker_api.Repository.WorkoutExerciseRepository;
-import com.cosmin.fitness_tracker_api.Repository.WorkoutRepository;
+import com.cosmin.fitness_tracker_api.Model.*;
+import com.cosmin.fitness_tracker_api.Repository.*;
 import com.cosmin.fitness_tracker_api.Repository.Projection.PersonalRecordProjection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-@Transactional
-@SpringBootTest
-@ActiveProfiles("test")
-class PersonalRecordRepositoryIntegrationTest {
+class PersonalRecordRepositoryIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private ExerciseSetRepository exerciseSetRepository;
