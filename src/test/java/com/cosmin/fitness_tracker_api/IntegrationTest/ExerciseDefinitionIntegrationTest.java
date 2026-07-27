@@ -349,7 +349,7 @@ public class ExerciseDefinitionIntegrationTest extends AbstractIntegrationTest {
     void updateExercise_ShouldRejectSystemExercise() throws Exception {
 
         mockMvc.perform(
-                        put("/api/exercises/1")
+                        put("/api/exercises/" + systemExercise.getId())
                                 .contentType(MediaType.APPLICATION_JSON.toString())
                                 .content("""
                                 {                                           
@@ -369,7 +369,7 @@ public class ExerciseDefinitionIntegrationTest extends AbstractIntegrationTest {
     void updateExercise_ShouldRejectOtherUsersCustomExercise() throws Exception {
 
         mockMvc.perform(
-                        put("/api/exercises/3")
+                        put("/api/exercises/" + ionutExercise.getId())
                                 .contentType(MediaType.APPLICATION_JSON.toString())
                                 .content("""
                                 {  
@@ -389,7 +389,7 @@ public class ExerciseDefinitionIntegrationTest extends AbstractIntegrationTest {
     throws Exception {
 
         mockMvc.perform(
-                        put("/api/exercises/2")
+                        put("/api/exercises/" + cosminExercise.getId())
                                 .contentType(MediaType.APPLICATION_JSON.toString())
                                 .content("""
                                 {                                      
@@ -399,7 +399,7 @@ public class ExerciseDefinitionIntegrationTest extends AbstractIntegrationTest {
                                 """)
                 )
                 .andDo(print())
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
 
     }
 
@@ -410,7 +410,7 @@ public class ExerciseDefinitionIntegrationTest extends AbstractIntegrationTest {
 
 
         mockMvc.perform(
-                patch("/api/exercises/3")
+                patch("/api/exercises/" +  cosminExercise.getId())
         )
                 .andDo(print())
                 .andExpect(status().isNoContent());
@@ -422,7 +422,7 @@ public class ExerciseDefinitionIntegrationTest extends AbstractIntegrationTest {
 
 
         mockMvc.perform(
-                        patch("/api/exercises/1")
+                        patch("/api/exercises/" + systemExercise.getId())
                 )
                 .andDo(print())
                 .andExpect(status().isNotFound());
@@ -434,7 +434,7 @@ public class ExerciseDefinitionIntegrationTest extends AbstractIntegrationTest {
 
 
         mockMvc.perform(
-                        patch("/api/exercises/2")
+                        patch("/api/exercises/" + ionutExercise.getId())
                 )
                 .andDo(print())
                 .andExpect(status().isNotFound());
