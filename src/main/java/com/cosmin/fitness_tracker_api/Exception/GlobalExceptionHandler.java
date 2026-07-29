@@ -132,6 +132,14 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(WorkoutTemplateNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleWorkoutTemplateNotFoundException(WorkoutTemplateNotFoundException e) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error" , "Not found");
+        response.put("message" , e.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
     @ExceptionHandler(PersonalRecordNotFoundException.class)
     public ResponseEntity<Map<String, String>> handlePersonalRecordNotFoundException(PersonalRecordNotFoundException e) {
         Map<String, String> response = new HashMap<>();

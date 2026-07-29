@@ -5,6 +5,9 @@ import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Exception.*;
 import com.cosmin.fitness_tracker_api.Model.*;
 import com.cosmin.fitness_tracker_api.Repository.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,6 +69,80 @@ public class WorkoutTemplateService {
                 );
 
         return toWorkoutTemplateResponse(savedWorkout, exerciseResponses);
+    }
+
+    @Transactional(readOnly = true)
+    public WorkoutTemplateResponse getTemplateById(Long templateId){
+        String username = getCurrentUsername();
+
+        WorkoutTemplate template = workoutTemplateRepository.findByIdAndUserUsername(templateId,username)
+                .orElseThrow(() -> new WorkoutTemplateNotFoundException("Workout template with id "+ templateId + " not found"));
+
+
+        return toWorkoutTemplateResponse(template);
+    }
+
+
+    @Transactional(readOnly = true)
+    public PagedResponse<WorkoutTemplateResponse> getAllTemplates(int page, int size){
+
+        String username = getCurrentUsername();
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<WorkoutTemplateResponse> workoutTemplates = workoutTemplateRepository.
+                findByUserUsername(username,pageable)
+                .map(this::toWorkoutTemplateResponse);
+
+        return PagedResponse.from(workoutTemplates);
+
+    }
+
+    @Transactional
+    public void deleteTemplateById(Long templateId){
+
+        WorkoutTemplate template = workoutTemplateRepository.findByIdAndUserUsername(templateId,getCurrentUsername())
+                .orElseThrow(() -> new WorkoutTemplateNotFoundException("Workout template with id "+ templateId + " not found"));
+
+        workoutTemplateRepository.delete(template);
+    }
+
+    @Transactional(readOnly = true)
+    public WorkoutRequest prepareWorkoutFromTemplate(Long templateId){
+        String username = getCurrentUsername();
+
+        WorkoutTemplate workoutTemplate = workoutTemplateRepository
+                .findByIdAndUserUsername(templateId,username)
+                .orElseThrow( () -> new WorkoutTemplateNotFoundException("Workout template with id " + templateId + " not found"));
+
+        List<WorkoutTemplateExercise> templateExercises = workoutTemplate.getTemplateExercises();
+
+        List<WorkoutExerciseRequest> exerciseRequests = templateExercises
+                .stream()
+                .map(exercise -> {
+
+                    List<SetRequest> setRequests = exercise.getTemplateSets()
+                            .stream()
+                            .map(set -> {
+                                return new SetRequest(
+                                        set.getTargetWeight(),
+                                        set.getTargetReps(),
+                                        set.getTargetRir()
+                                );
+                            })
+                            .toList();
+                    return new WorkoutExerciseRequest(
+                            exercise.getExerciseDefinition().getId(),
+                            setRequests
+                    );
+                }).toList();
+
+        return new WorkoutRequest(
+            workoutTemplate.getTemplateName(),
+            LocalDate.now(),
+            exerciseRequests
+        );
+
     }
 
 
