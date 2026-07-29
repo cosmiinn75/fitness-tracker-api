@@ -44,6 +44,7 @@ public class WorkoutTemplateService {
                 .strip()
                 .replaceAll("\\s+", " ");
 
+
         String normalizedName = normalizeName(cleanName);
 
         WorkoutTemplate template = workoutTemplateRepository.findByUserUsernameAndNormalizedName(username,normalizedName)
