@@ -83,6 +83,14 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(DuplicateExerciseDefinitionException.class)
+    public ResponseEntity<Map<String, String>> handleDuplicateExerciseDefinitionException(DuplicateExerciseDefinitionException e) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error" , "Bad request");
+        response.put("message" , e.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(InvalidTrainingGoalStatusException.class)
     public ResponseEntity<Map<String, String>> handleInvalidTrainingGoalStatusException(InvalidTrainingGoalStatusException e) {
         Map<String, String> response = new HashMap<>();
@@ -118,6 +126,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(WorkoutNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleWorkoutNotFoundException(WorkoutNotFoundException e) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error" , "Not found");
+        response.put("message" , e.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(WorkoutTemplateNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleWorkoutTemplateNotFoundException(WorkoutTemplateNotFoundException e) {
         Map<String, String> response = new HashMap<>();
         response.put("error" , "Not found");
         response.put("message" , e.getMessage());
