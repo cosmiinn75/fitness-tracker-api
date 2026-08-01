@@ -4,7 +4,7 @@
 
 A secure REST API for recording strength-training workouts and tracking progress, built with **Java 26**, **Spring Boot 4.1**, and **MySQL 8**.
 
-This portfolio project goes beyond basic CRUD operations. It includes JWT authentication with refresh-token rotation, user-owned resources, nested workout management, filtering and pagination, workout duplication, exercise history, estimated one-repetition maximum calculations, paginated personal records powered by a native SQL window function, and a complete training-goal lifecycle with automatic completion and expiration. The project also includes Flyway database migrations, automated tests, Docker, health monitoring, and continuous integration.
+This portfolio project goes beyond basic CRUD operations. It includes JWT authentication with refresh-token rotation, global system exercises and user-owned custom exercises, nested workout management, reusable workout templates, filtering and pagination, workout duplication, exercise history, estimated one-repetition maximum calculations, paginated personal records powered by a native SQL window function, and a complete training-goal lifecycle with automatic completion and expiration. The project also includes Flyway database migrations, automated tests, Docker, health monitoring, and continuous integration.
 
 ## Table of Contents
 
@@ -18,6 +18,7 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 - [Authentication Flow](#authentication-flow)
 - [Progress Analytics](#progress-analytics)
 - [Training Goal Lifecycle](#training-goal-lifecycle)
+- [Workout Template Workflow](#workout-template-workflow)
 - [Request and Response Examples](#request-and-response-examples)
 - [Validation and Error Handling](#validation-and-error-handling)
 - [Running with Docker](#running-with-docker)
@@ -37,6 +38,9 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 - Secure JWT authentication with access and refresh tokens
 - Persistent refresh-token rotation and revocation
 - Complete nested CRUD for workouts, exercises, and sets
+- Global `SYSTEM` exercises combined with user-owned `CUSTOM` exercises
+- Reusable workout templates with ordered exercises and target sets
+- Read-only workout-draft generation from saved templates
 - Ownership protection for every user-specific operation
 - Pagination, filtering, date ranges, and deterministic ordering
 - Paginated personal records selected with `ROW_NUMBER()` and `PARTITION BY`
@@ -65,12 +69,16 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 
 ### Exercise Definitions
 
-- Create reusable exercise definitions
-- Retrieve all exercise definitions
-- Retrieve one exercise definition by ID
-- Update an exercise name and muscle group
-- Prevent duplicate exercise names
-- Allow an exercise to keep its current name during an update
+- Provide global `SYSTEM` exercise definitions available to every authenticated user
+- Allow each user to create private `CUSTOM` exercise definitions
+- Retrieve all accessible, non-archived exercises: global system exercises and the authenticated user's custom exercises
+- Retrieve one exercise definition only when it is globally available or owned by the authenticated user
+- Update only custom exercises owned by the authenticated user
+- Archive custom exercises without deleting historical workout data
+- Prevent users from modifying or archiving global system exercises
+- Prevent duplicate custom names for the same user and names that conflict with a system exercise
+- Normalize exercise names by trimming whitespace, collapsing repeated spaces, and comparing names case-insensitively
+- Return the exercise type and archive status in the API response
 - Supported muscle groups: `CHEST`, `BACK`, `ARMS`, `SHOULDERS`, `LEGS`, and `CORE`
 
 ### Workout Management
@@ -124,6 +132,21 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 - Keep `GET` requests read-only
 - Support the lifecycle statuses `ACTIVE`, `COMPLETED`, `CANCELLED`, and `EXPIRED`
 
+### Workout Templates
+
+- Create reusable workout templates containing ordered exercises and target sets
+- Store target weight, repetitions, and optional RIR for every template set
+- Generate `exerciseNumber` and `setNumber` values from request order
+- Prevent the same exercise definition from appearing more than once in one template
+- Prevent duplicate template names for the same user through normalized-name checks
+- Allow templates to reference global system exercises and custom exercises owned by the authenticated user
+- Retrieve one owned template with its exercises and sets in deterministic order
+- Retrieve the authenticated user's templates with pagination
+- Delete an owned template together with its nested exercises and sets without deleting referenced exercise definitions
+- Convert a template into a pre-filled `WorkoutRequest` using the current date
+- Return the generated workout as an editable draft without saving a workout to the database
+- Protect every template operation with authenticated-user ownership checks
+
 ### Database and Operations
 
 - Manage the schema with versioned Flyway migrations
@@ -137,6 +160,7 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 - Build and test every push and pull request through GitHub Actions
 - Run scheduled training-goal expiration at midnight
 - Update overdue goals with one transactional JPQL bulk query
+- Persist workout templates through a dedicated Flyway migration with cascade deletion for nested template data
 
 ## Tech Stack
 
@@ -163,7 +187,7 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 The application follows a layered architecture:
 
 1. **Controllers** expose REST endpoints and validate incoming parameters and request bodies.
-2. **Services** implement authentication, ownership, workout, exercise, progress, and training-goal business rules.
+2. **Services** implement authentication, ownership, workout, exercise, progress, training-goal, and workout-template business rules.
 3. **Repositories** access MySQL through Spring Data JPA, JPQL, and native SQL where appropriate.
 4. **DTOs** keep the public API contract separate from persistence entities.
 5. **Projections** map optimized native-query results without loading full JPA entity graphs.
@@ -179,18 +203,24 @@ erDiagram
     USER ||--o{ WORKOUT : owns
     USER ||--o{ REFRESH_TOKEN : receives
     USER ||--o{ TRAINING_GOAL : sets
+    USER ||--o{ WORKOUT_TEMPLATE : owns
     WORKOUT ||--|{ WORKOUT_EXERCISE : contains
     EXERCISE_DEFINITION ||--o{ WORKOUT_EXERCISE : identifies
     EXERCISE_DEFINITION ||--o{ TRAINING_GOAL : targets
+    EXERCISE_DEFINITION ||--o{ WORKOUT_TEMPLATE_EXERCISE : identifies
     WORKOUT_EXERCISE ||--|{ EXERCISE_SET : contains
+    WORKOUT_TEMPLATE ||--|{ WORKOUT_TEMPLATE_EXERCISE : contains
+    WORKOUT_TEMPLATE_EXERCISE ||--|{ WORKOUT_TEMPLATE_SET : contains
 ```
 
-- A user owns multiple workouts, refresh tokens, and training goals.
+- A user owns multiple workouts, refresh tokens, training goals, custom exercise definitions, and workout templates.
+- A system exercise is globally accessible and has no owner; a custom exercise belongs to exactly one user.
 - A workout contains ordered workout exercises.
 - A workout exercise references one reusable exercise definition.
 - A workout exercise contains ordered sets.
 - A set records weight, repetitions, and optional repetitions in reserve (`RIR`).
 - A training goal links one user to one exercise definition and stores target weight, repetitions, date, creation date, and lifecycle status.
+- A workout template contains ordered template exercises and target sets that can be converted into an editable workout draft.
 
 ## Database Migrations
 
@@ -202,7 +232,7 @@ Migration files are stored in:
 src/main/resources/db/migration
 ```
 
-The migration history includes the initial schema, database indexes, the `training_goals` table, and a later schema-alignment migration for its `created_at` column. Every migration uses Flyway's `V<version>__<description>.sql` naming convention.
+The migration history includes the initial schema, database indexes, the `training_goals` table, password-reset tokens, exercise ownership and type information, and the workout-template tables. Every migration uses Flyway's `V<version>__<description>.sql` naming convention.
 
 The migrations create and evolve the following tables:
 
@@ -213,8 +243,14 @@ The migrations create and evolve the following tables:
 - `workout_exercises`
 - `exercise_sets`
 - `training_goals`
+- `reset_tokens`
+- `workout_templates`
+- `workout_template_exercises`
+- `workout_template_sets`
 
 The `training_goals` table includes foreign keys to `users` and `exercise_definitions`, a persisted lifecycle status, and indexes supporting user-, exercise-, and status-based lookups.
+
+The exercise-definition schema distinguishes global `SYSTEM` exercises from user-owned `CUSTOM` exercises and enforces the correct owner relationship. The workout-template tables preserve exercise and set ordering, cascade nested template deletion, and restrict deletion of referenced exercise definitions.
 
 Application startup follows this sequence:
 
@@ -249,10 +285,11 @@ Authorization: Bearer <access-token>
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `GET` | `/api/exercises` | Retrieve all exercise definitions |
-| `GET` | `/api/exercises/{id}` | Retrieve an exercise definition by ID |
-| `POST` | `/api/exercises` | Create an exercise definition |
-| `PUT` | `/api/exercises/{id}` | Replace an exercise definition |
+| `GET` | `/api/exercises` | Retrieve global system exercises and the authenticated user's custom exercises |
+| `GET` | `/api/exercises/{id}` | Retrieve an accessible exercise definition by ID |
+| `POST` | `/api/exercises` | Create a user-owned custom exercise definition |
+| `PUT` | `/api/exercises/{id}` | Replace an owned custom exercise definition |
+| `PATCH` | `/api/exercises/{id}` | Archive an owned custom exercise definition |
 
 ### Workouts
 
@@ -333,6 +370,20 @@ GET /api/training-goals?page=0&size=10
 ```
 
 Training goals are always restricted to the authenticated user. An ID belonging to a different user is treated as a missing resource.
+
+### Workout Templates
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/workout-templates` | Create a reusable template with ordered exercises and target sets |
+| `GET` | `/api/workout-templates` | Retrieve the authenticated user's templates with pagination |
+| `GET` | `/api/workout-templates/{templateId}` | Retrieve one owned template |
+| `GET` | `/api/workout-templates/{templateId}/workout-draft` | Convert a template into an unsaved, editable workout draft |
+| `DELETE` | `/api/workout-templates/{templateId}` | Delete an owned template and its nested template data |
+
+`GET /api/workout-templates` accepts `page` and `size`. The defaults are `0` and `20`, and the maximum page size is `100`.
+
+Workout templates are restricted to the authenticated user. Trying to access another user's template returns the same response as requesting a missing template.
 
 ### Operations
 
@@ -427,6 +478,20 @@ Workout creation checks active goals after the workout and its nested exercises 
 
 The workout response reports how many goals were completed through `goalsCompleted`.
 
+## Workout Template Workflow
+
+A workout template stores a reusable training structure independently of workout history:
+
+1. The authenticated user creates a template with ordered exercises and target sets.
+2. Every exercise must be either a global `SYSTEM` exercise or a `CUSTOM` exercise owned by that user.
+3. The same exercise definition cannot appear twice in one template.
+4. The API stores target weight, repetitions, and optional RIR without creating a workout.
+5. `GET /api/workout-templates/{templateId}/workout-draft` converts the template into a `WorkoutRequest` with the current date.
+6. The returned draft can be edited by the client.
+7. The client explicitly submits the final request to `POST /api/workouts` when the workout should be saved.
+
+Generating a draft is a read-only operation. It does not change the template and does not persist a workout.
+
 ## Request and Response Examples
 
 ### Register
@@ -453,7 +518,7 @@ Example response:
 }
 ```
 
-### Create an Exercise Definition
+### Create a Custom Exercise Definition
 
 ```http
 POST /api/exercises
@@ -463,8 +528,22 @@ Content-Type: application/json
 
 ```json
 {
-  "exerciseName": "Bench Press",
-  "muscleGroup": "CHEST"
+  "exerciseName": "Chest-Supported Row",
+  "muscleGroup": "BACK"
+}
+```
+
+Every exercise created through this endpoint receives the `CUSTOM` type and belongs to the authenticated user. Global `SYSTEM` exercises are available to all users but cannot be created, updated, or archived through user endpoints.
+
+Example response:
+
+```json
+{
+  "id": 21,
+  "exerciseName": "Chest-Supported Row",
+  "muscleGroup": "BACK",
+  "exerciseType": "CUSTOM",
+  "archived": false
 }
 ```
 
@@ -568,6 +647,74 @@ Authorization: Bearer <access-token>
 ```
 
 Only an `ACTIVE` goal can be cancelled. Completed, expired, and already cancelled goals keep their current status and produce a conflict response.
+
+### Create a Workout Template
+
+```http
+POST /api/workout-templates
+Authorization: Bearer <access-token>
+Content-Type: application/json
+```
+
+```json
+{
+  "workoutTemplateName": "Push Day",
+  "templateExerciseRequest": [
+    {
+      "exerciseDefinitionId": 1,
+      "templateSetRequests": [
+        {
+          "targetWeight": 100.0,
+          "targetReps": 5,
+          "targetRir": 2
+        },
+        {
+          "targetWeight": 90.0,
+          "targetReps": 8,
+          "targetRir": 2
+        }
+      ]
+    }
+  ]
+}
+```
+
+The API assigns exercise and set numbers according to their position in the request.
+
+### Prepare a Workout Draft from a Template
+
+```http
+GET /api/workout-templates/1/workout-draft
+Authorization: Bearer <access-token>
+```
+
+Example response:
+
+```json
+{
+  "workoutName": "Push Day",
+  "date": "2026-08-01",
+  "exerciseRequests": [
+    {
+      "exerciseDefinitionId": 1,
+      "setRequests": [
+        {
+          "weight": 100.0,
+          "reps": 5,
+          "rir": 2
+        },
+        {
+          "weight": 90.0,
+          "reps": 8,
+          "rir": 2
+        }
+      ]
+    }
+  ]
+}
+```
+
+This response is only a draft. Nothing is saved until the client sends it to `POST /api/workouts`.
 
 ### Partially Update a Set
 
@@ -704,6 +851,13 @@ The API validates:
 - One active goal per user and exercise
 - Training-goal ownership
 - Valid status transitions when cancelling a goal
+- Exercise access based on `SYSTEM` or user-owned `CUSTOM` type
+- Custom-exercise ownership for update and archive operations
+- Unique normalized template names per user
+- Non-empty template exercise and set collections
+- Positive target weight and repetition values with valid RIR ranges
+- No duplicated exercise definitions inside one workout template
+- Workout-template ownership for read, draft, and delete operations
 
 The global exception handler translates validation and business failures into responses such as:
 
@@ -893,6 +1047,7 @@ The automated test suite includes:
 - Training-goal creation, pagination, cancellation, completion, and expiration tests
 - Training-goal validation, ownership, duplicate-active-goal, and invalid-status tests
 - Scheduled bulk-expiration query tests
+- Workout-template creation, duplicate-name, duplicate-exercise, access, ownership, deletion, and draft-generation service tests
 
 The personal-record repository tests verify:
 
@@ -915,6 +1070,17 @@ The training-goal tests verify:
 - Rejection of invalid status transitions
 - Expiration of only overdue `ACTIVE` goals
 - Controller validation, pagination, `404 Not Found`, and `409 Conflict` responses
+
+The workout-template service tests verify:
+
+- Creation of nested templates with ordered exercises and sets
+- Rejection of normalized duplicate template names
+- Rejection of duplicate exercise definitions inside one template
+- Rejection of missing or inaccessible exercise definitions
+- Ownership checks when retrieving and deleting templates
+- Cascade-oriented deletion through the owned template aggregate
+- Conversion from target set values to a workout draft
+- Absence of save operations while generating a draft
 
 ## Continuous Integration
 
@@ -979,21 +1145,25 @@ fitness-tracker-api/
 - Workouts are queried by both resource ID and authenticated username.
 - Progress queries filter by the authenticated username.
 - Training goals are queried by both goal ID and authenticated username.
+- Exercise queries expose only global system exercises and custom exercises owned by the authenticated user.
+- Only owned custom exercises can be updated or archived; system exercises remain read-only.
+- Workout templates are queried by both template ID and authenticated username.
 - Users cannot read or modify another user's workouts through their IDs.
 - Users cannot view or cancel another user's training goals through their IDs.
+- Users cannot read, convert, or delete another user's workout templates through their IDs.
 - Authentication, Swagger/OpenAPI, and `/actuator/health` are the only public endpoint groups.
 
 Production deployments should use HTTPS, dedicated database credentials, a long random JWT secret, and separate production configuration.
 
 ## Roadmap
 
-- Use Testcontainers for isolated integration-test databases
+- Add a Testcontainers integration test for workout-template persistence and cascade deletion
 - Add JaCoCo coverage reporting
 - Deploy the API to a public cloud platform
 - Add structured logging and additional Actuator metrics
 - Add rate limiting to authentication endpoints
 - Add profile and password-management endpoints
-- Add optional custom exercise definitions owned by individual users
+- Add full `PUT` replacement support for workout templates
 - Optimize remaining nested summary queries after measuring their SQL behavior
 
 ## What I Learned
@@ -1012,6 +1182,10 @@ While building this project, I practiced:
 - Duplicating aggregates with their child entities
 - Calculating workout volume, personal records, progress summaries, and estimated 1RM
 - Modeling a training-goal lifecycle with explicit terminal statuses
+- Modeling global system exercises and private user-owned custom exercises
+- Preserving workout history by archiving custom definitions instead of deleting them
+- Modeling reusable workout templates as nested aggregates
+- Converting persisted templates into editable workout drafts without side effects
 - Completing goals from nested workout data while preserving user ownership
 - Running scheduled maintenance with Spring's scheduling support
 - Performing transactional JPQL bulk updates
@@ -1029,7 +1203,7 @@ While building this project, I practiced:
 
 ## Status
 
-The core API, progress analytics, and training-goal lifecycle are implemented and actively maintained as a backend portfolio project. The `main` branch includes automated tests and continuous integration.
+The core API, progress analytics, training-goal lifecycle, global and custom exercise definitions, and workout-template workflow are implemented and actively maintained as a backend portfolio project. The `main` branch includes automated tests and continuous integration.
 
 ## Author
 
