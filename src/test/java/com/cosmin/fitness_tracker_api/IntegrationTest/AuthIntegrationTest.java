@@ -1,9 +1,9 @@
 package com.cosmin.fitness_tracker_api.IntegrationTest;
 
-import com.cosmin.fitness_tracker_api.Model.RefreshToken;
-import com.cosmin.fitness_tracker_api.Model.User;
-import com.cosmin.fitness_tracker_api.Repository.RefreshTokenRepository;
-import com.cosmin.fitness_tracker_api.Repository.UserRepository;
+import com.cosmin.fitness_tracker_api.model.RefreshToken;
+import com.cosmin.fitness_tracker_api.model.User;
+import com.cosmin.fitness_tracker_api.repository.RefreshTokenRepository;
+import com.cosmin.fitness_tracker_api.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

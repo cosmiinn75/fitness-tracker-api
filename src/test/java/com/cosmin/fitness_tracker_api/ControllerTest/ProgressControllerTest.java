@@ -1,9 +1,9 @@
 package com.cosmin.fitness_tracker_api.ControllerTest;
 
-import com.cosmin.fitness_tracker_api.Controller.ProgressController;
+import com.cosmin.fitness_tracker_api.controller.ProgressController;
 import com.cosmin.fitness_tracker_api.DTO.*;
-import com.cosmin.fitness_tracker_api.Security.JWTFilter;
-import com.cosmin.fitness_tracker_api.Service.ProgressService;
+import com.cosmin.fitness_tracker_api.security.JWTFilter;
+import com.cosmin.fitness_tracker_api.service.ProgressService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -15,7 +15,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDate;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;

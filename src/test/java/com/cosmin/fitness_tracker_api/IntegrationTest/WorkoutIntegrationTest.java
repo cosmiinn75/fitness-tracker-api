@@ -2,9 +2,9 @@ package com.cosmin.fitness_tracker_api.IntegrationTest;
 
 import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
-import com.cosmin.fitness_tracker_api.Model.*;
-import com.cosmin.fitness_tracker_api.Repository.*;
-import com.cosmin.fitness_tracker_api.Service.TrainingGoalService;
+import com.cosmin.fitness_tracker_api.model.*;
+import com.cosmin.fitness_tracker_api.repository.*;
+import com.cosmin.fitness_tracker_api.service.TrainingGoalService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -3,19 +3,20 @@ package com.cosmin.fitness_tracker_api.ServiceTest;
 import com.cosmin.fitness_tracker_api.DTO.*;
 import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
-import com.cosmin.fitness_tracker_api.Exception.ExerciseDefinitionNotFoundException;
-import com.cosmin.fitness_tracker_api.Exception.InvalidDateRangeException;
-import com.cosmin.fitness_tracker_api.Exception.PersonalRecordNotFoundException;
-import com.cosmin.fitness_tracker_api.Exception.WorkoutNotFoundException;
-import com.cosmin.fitness_tracker_api.Model.*;
-import com.cosmin.fitness_tracker_api.Repository.ExerciseDefinitionRepository;
-import com.cosmin.fitness_tracker_api.Repository.ExerciseSetRepository;
-import com.cosmin.fitness_tracker_api.Repository.Projection.PersonalRecordProjection;
-import com.cosmin.fitness_tracker_api.Repository.WorkoutExerciseRepository;
-import com.cosmin.fitness_tracker_api.Repository.WorkoutRepository;
-import com.cosmin.fitness_tracker_api.Service.ProgressService;
+import com.cosmin.fitness_tracker_api.exception.ExerciseDefinitionNotFoundException;
+import com.cosmin.fitness_tracker_api.exception.InvalidDateRangeException;
+import com.cosmin.fitness_tracker_api.exception.PersonalRecordNotFoundException;
+import com.cosmin.fitness_tracker_api.exception.WorkoutNotFoundException;
+import com.cosmin.fitness_tracker_api.model.*;
+import com.cosmin.fitness_tracker_api.repository.ExerciseDefinitionRepository;
+import com.cosmin.fitness_tracker_api.repository.ExerciseSetRepository;
+import com.cosmin.fitness_tracker_api.repository.Projection.PersonalRecordProjection;
+import com.cosmin.fitness_tracker_api.repository.WorkoutExerciseRepository;
+import com.cosmin.fitness_tracker_api.repository.WorkoutRepository;
+import com.cosmin.fitness_tracker_api.security.CurrentUserProvider;
+import com.cosmin.fitness_tracker_api.service.ProgressService;
 import org.jspecify.annotations.NonNull;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,11 +26,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDate;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -50,12 +48,16 @@ public class ProgressServiceTest {
     @Mock
     private WorkoutExerciseRepository workoutExerciseRepository;
 
+    @Mock
+    private CurrentUserProvider currentUserProvider;
+
     @InjectMocks
     private ProgressService progressService;
 
+
+
     @Test
     void getWorkoutVolumeById_ShouldReturnTotalVolume() {
-        mockAuthenticatedUser();
 
         Long workoutId = 1L;
 
@@ -124,7 +126,7 @@ public class ProgressServiceTest {
     @Test
     void getWorkoutVolumeById_ShouldThrowException_WhenWorkoutDoesNotExist() {
 
-        mockAuthenticatedUser();
+
         Long workoutId = 1L;
 
         when(workoutRepository.findByIdAndUserUsername(workoutId, "cosmin"))
@@ -139,7 +141,7 @@ public class ProgressServiceTest {
 
     @Test
     void getWeeklyVolume_ShouldReturnTotalVolume() {
-        mockAuthenticatedUser();
+
 
         LocalDate today = LocalDate.now();
         LocalDate aWeekAgo = today.minusDays(6);
@@ -168,7 +170,6 @@ public class ProgressServiceTest {
 
     @Test
     void getMonthyVolume_ShouldReturnTotalVolume() {
-        mockAuthenticatedUser();
 
         LocalDate today = LocalDate.now();
         LocalDate aMonthAgo = today.withDayOfMonth(1);
@@ -198,7 +199,7 @@ public class ProgressServiceTest {
 
     @Test
     void getPersonalRecordById_ShouldChooseHighestWeight() {
-        mockAuthenticatedUser();
+
 
         Long exerciseDefinitionId = 1L;
 
@@ -267,7 +268,7 @@ public class ProgressServiceTest {
 
     @Test
     void getPersonalRecordById_ShouldChooseHighestReps_WhenWeightsAreEqual() {
-        mockAuthenticatedUser();
+
 
         Long exerciseDefinitionId = 1L;
 
@@ -310,7 +311,7 @@ public class ProgressServiceTest {
 
     @Test
     void getPersonalRecordById_ShouldThrowException_WhenExerciseDoesNotExist() {
-        mockAuthenticatedUser();
+
 
         Long exerciseDefinitionId = 1L;
 
@@ -329,7 +330,7 @@ public class ProgressServiceTest {
 
     @Test
     void getPersonalRecordById_ShouldThrowException_WhenNoSetsExist() {
-        mockAuthenticatedUser();
+
 
         Long exerciseDefinitionId = 1L;
 
@@ -360,7 +361,7 @@ public class ProgressServiceTest {
 
     @Test
     void getPersonalRecords_ShouldMapProjectionAndPreservePagination() {
-        mockAuthenticatedUser();
+
 
         Pageable pageable = PageRequest.of(0, 2);
 
@@ -414,7 +415,7 @@ public class ProgressServiceTest {
 
     @Test
     void getPersonalRecords_ShouldReturnEmptyPage_WhenUserHasNoSets() {
-        mockAuthenticatedUser();
+
 
         Pageable pageable = PageRequest.of(0, 10);
 
@@ -461,7 +462,7 @@ public class ProgressServiceTest {
 
     @Test
     void getWorkoutHistory_ShouldReturnWorkoutHistory(){
-        mockAuthenticatedUser();
+
 
         User user = new User();
         user.setId(1L);
@@ -579,7 +580,7 @@ public class ProgressServiceTest {
 
     @Test
     void getWorkoutHistory_ShouldThrowException_WhenDateRangeIsInvalid() {
-        mockAuthenticatedUser();
+
 
         Long exerciseDefinitionId = 1L;
 
@@ -600,7 +601,7 @@ public class ProgressServiceTest {
 
     @Test
     void getWorkoutHistory_ShouldThrowException_WhenExerciseDefinitionDoesNotExist() {
-        mockAuthenticatedUser();
+
 
         Long exerciseDefinitionId = 1L;
 
@@ -627,7 +628,7 @@ public class ProgressServiceTest {
 
     @Test
     void summary_ShouldReturnSummaryResponse(){
-        mockAuthenticatedUser();
+
         User user = new User();
         user.setUsername("cosmin");
 
@@ -699,19 +700,12 @@ public class ProgressServiceTest {
     }
 
 
-    private void mockAuthenticatedUser() {
 
-        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                "cosmin",
-                null,
-                Collections.emptyList()
-        );
-        SecurityContextHolder.getContext().setAuthentication(authToken);
-    }
 
-    @AfterEach
-    void tearDown() {
-        SecurityContextHolder.clearContext();
+    @BeforeEach
+    void setUp(){
+        when(currentUserProvider.getCurrentUsername())
+                .thenReturn("cosmin");
     }
 
 }

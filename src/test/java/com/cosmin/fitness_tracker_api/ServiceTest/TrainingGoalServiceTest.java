@@ -7,13 +7,16 @@ import com.cosmin.fitness_tracker_api.DTO.TrainingGoalResponse;
 import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
 import com.cosmin.fitness_tracker_api.Enum.Status;
-import com.cosmin.fitness_tracker_api.Exception.*;
-import com.cosmin.fitness_tracker_api.Model.*;
-import com.cosmin.fitness_tracker_api.Repository.ExerciseDefinitionRepository;
-import com.cosmin.fitness_tracker_api.Repository.TrainingGoalRepository;
-import com.cosmin.fitness_tracker_api.Repository.UserRepository;
-import com.cosmin.fitness_tracker_api.Service.TrainingGoalService;
-import org.junit.jupiter.api.AfterEach;
+import com.cosmin.fitness_tracker_api.exception.ActiveTrainingGoalAlreadyExistsException;
+import com.cosmin.fitness_tracker_api.exception.ExerciseDefinitionNotFoundException;
+import com.cosmin.fitness_tracker_api.exception.TrainingGoalNotFoundException;
+import com.cosmin.fitness_tracker_api.model.*;
+import com.cosmin.fitness_tracker_api.repository.ExerciseDefinitionRepository;
+import com.cosmin.fitness_tracker_api.repository.TrainingGoalRepository;
+import com.cosmin.fitness_tracker_api.repository.UserRepository;
+import com.cosmin.fitness_tracker_api.security.CurrentUserProvider;
+import com.cosmin.fitness_tracker_api.service.TrainingGoalService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,16 +26,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDate;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static org.mockito.Mockito.when;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -49,13 +49,16 @@ public class TrainingGoalServiceTest {
     @Mock
     UserRepository userRepository;
 
+    @Mock
+    CurrentUserProvider currentUserProvider;
+
     @InjectMocks
     TrainingGoalService trainingGoalService;
 
     @Test
     void createTrainingGoal_WithValidRequest_Should_Create_TrainingGoal() {
 
-        mockAuthenticatedUser();
+
 
         User user = new User();
         user.setId(1L);
@@ -112,7 +115,7 @@ public class TrainingGoalServiceTest {
 
     @Test
     void createTrainingGoal_WhenExerciseDefinitionDoesNotExist_ShouldThrowExerciseDefinitionNotFoundException() {
-        mockAuthenticatedUser();
+
 
         User user = new User();
         user.setId(1L);
@@ -143,7 +146,7 @@ public class TrainingGoalServiceTest {
 
     @Test
     void createTrainingGoal_WhenActiveGoalAlreadyExists_ShouldThrowActiveTrainingGoalAlreadyExistsException() {
-        mockAuthenticatedUser();
+
 
         User user = new User();
         user.setId(1L);
@@ -188,7 +191,7 @@ public class TrainingGoalServiceTest {
 
     @Test
     void getTrainingGoals_WithValidPageSize_Should_Return_TrainingGoals() {
-        mockAuthenticatedUser();
+
 
         User user = new User();
         user.setId(1L);
@@ -254,7 +257,7 @@ public class TrainingGoalServiceTest {
 
     @Test
     void cancelTrainingGoal_WithValidIndex_Should_Cancel_TrainingGoal() {
-        mockAuthenticatedUser();
+
         User user = new User();
         user.setId(1L);
         user.setUsername("cosmin");
@@ -290,7 +293,7 @@ public class TrainingGoalServiceTest {
 
     @Test
     void cancelTrainingGoal_WhenGoalDoesNotExist_ShouldThrowTrainingGoalNotFoundException() {
-        mockAuthenticatedUser();
+
 
         when(trainingGoalRepository.findByUserUsernameAndId("cosmin", 99L))
                 .thenReturn(Optional.empty());
@@ -306,7 +309,7 @@ public class TrainingGoalServiceTest {
 
     @Test
     void completeGoalsFromWorkout_WhenOneSetReachesBothTargets_ShouldCompleteGoal() {
-        mockAuthenticatedUser();
+
 
         ExerciseDefinition exerciseDefinition = exerciseDefinition(1L);
         TrainingGoal trainingGoal = activeGoal(exerciseDefinition);
@@ -336,7 +339,7 @@ public class TrainingGoalServiceTest {
 
     @Test
     void completeGoalsFromWorkout_WhenTargetsAreReachedByDifferentSets_ShouldNotCompleteGoal() {
-        mockAuthenticatedUser();
+
 
         ExerciseDefinition exerciseDefinition = exerciseDefinition(1L);
         TrainingGoal trainingGoal = activeGoal(exerciseDefinition);
@@ -368,7 +371,7 @@ public class TrainingGoalServiceTest {
 
     @Test
     void completeGoalsFromWorkout_WhenWorkoutPredatesGoal_ShouldNotCompleteGoal() {
-        mockAuthenticatedUser();
+
 
         ExerciseDefinition exerciseDefinition = exerciseDefinition(1L);
         TrainingGoal trainingGoal = activeGoal(exerciseDefinition);
@@ -400,20 +403,10 @@ public class TrainingGoalServiceTest {
     }
 
 
-    @AfterEach
-    void tearDown() {
-        SecurityContextHolder.clearContext();
-    }
-
-
-    private void mockAuthenticatedUser() {
-
-        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                "cosmin",
-                null,
-                Collections.emptyList()
-        );
-        SecurityContextHolder.getContext().setAuthentication(authToken);
+    @BeforeEach
+    void setup(){
+        when(currentUserProvider.getCurrentUsername())
+                .thenReturn("cosmin");
     }
 
     private ExerciseDefinition exerciseDefinition(Long id) {
