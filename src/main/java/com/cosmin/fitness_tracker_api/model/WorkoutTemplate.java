@@ -1,6 +1,8 @@
 package com.cosmin.fitness_tracker_api.model;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -8,6 +10,8 @@ import java.util.List;
 
 @Entity
 @Table(name = "workout_templates")
+@Getter
+@Setter
 public class WorkoutTemplate {
 
     @Id
@@ -46,60 +50,6 @@ public class WorkoutTemplate {
         templateExercise.setWorkoutTemplate(this);
     }
 
-    public void removeTemplateExercise(
-            WorkoutTemplateExercise templateExercise
-    ) {
-        templateExercises.remove(templateExercise);
-        templateExercise.setWorkoutTemplate(null);
-    }
 
-    public Long getId() {
-        return id;
-    }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getTemplateName() {
-        return templateName;
-    }
-
-    public void setTemplateName(String templateName) {
-        this.templateName = templateName;
-    }
-
-    public String getNormalizedName() {
-        return normalizedName;
-    }
-
-    public void setNormalizedName(String normalizedName) {
-        this.normalizedName = normalizedName;
-    }
-
-    public LocalDate getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDate createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public User getUser() {
-        return user;
-    }
-
-    public void setUser(User user) {
-        this.user = user;
-    }
-
-    public List<WorkoutTemplateExercise> getTemplateExercises() {
-        return templateExercises;
-    }
-
-    public void setTemplateExercises(
-            List<WorkoutTemplateExercise> templateExercises
-    ) {
-        this.templateExercises = templateExercises;
-    }
 }

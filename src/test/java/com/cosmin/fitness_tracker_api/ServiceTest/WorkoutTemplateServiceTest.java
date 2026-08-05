@@ -7,6 +7,7 @@ import com.cosmin.fitness_tracker_api.exception.DuplicateExerciseDefinitionExcep
 import com.cosmin.fitness_tracker_api.exception.ExerciseDefinitionNotFoundException;
 import com.cosmin.fitness_tracker_api.exception.NameAlreadyExistsException;
 import com.cosmin.fitness_tracker_api.exception.WorkoutTemplateNotFoundException;
+import com.cosmin.fitness_tracker_api.mapper.WorkoutTemplateMapper;
 import com.cosmin.fitness_tracker_api.model.*;
 import com.cosmin.fitness_tracker_api.repository.*;
 import com.cosmin.fitness_tracker_api.security.CurrentUserProvider;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
@@ -47,6 +49,9 @@ public class WorkoutTemplateServiceTest {
 
     @Mock
     private CurrentUserProvider currentUserProvider;
+
+    @Spy
+    private WorkoutTemplateMapper workoutTemplateMapper = new WorkoutTemplateMapper();
 
     @InjectMocks
     private WorkoutTemplateService workoutTemplateService;
@@ -487,6 +492,9 @@ public class WorkoutTemplateServiceTest {
 
     @BeforeEach
     void setup(){
+
+
+
         when(currentUserProvider.getCurrentUsername())
                 .thenReturn("cosmin");
     }

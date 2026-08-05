@@ -17,6 +17,7 @@ public record WorkoutMetaDataRequest(
 ) {
 
         @AssertTrue(message = "At least one field must be provided")
+        @SuppressWarnings("unused")
         public boolean isAnyFieldProvided() {
                 return workoutName != null || date != null;
         }

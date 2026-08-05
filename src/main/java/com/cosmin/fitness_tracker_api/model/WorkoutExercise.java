@@ -2,12 +2,16 @@ package com.cosmin.fitness_tracker_api.model;
 
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Table(name = "workout_exercises")
+@Getter
+@Setter
 public class WorkoutExercise {
 
     @Id
@@ -32,44 +36,4 @@ public class WorkoutExercise {
     public WorkoutExercise() {
     }
 
-
-    public List<ExerciseSet> getExerciseSets() {
-        return exerciseSets;
-    }
-
-    public void setExerciseSets(List<ExerciseSet> exerciseSets) {
-        this.exerciseSets = exerciseSets;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Workout getWorkout() {
-        return workout;
-    }
-
-    public void setWorkout(Workout workout) {
-        this.workout = workout;
-    }
-
-    public ExerciseDefinition getExerciseDefinition() {
-        return exerciseDefinition;
-    }
-
-    public void setExerciseDefinition(ExerciseDefinition exerciseDefinition) {
-        this.exerciseDefinition = exerciseDefinition;
-    }
-
-    public Integer getExerciseNumber() {
-        return exerciseNumber;
-    }
-
-    public void setExerciseNumber(Integer exerciseNumber) {
-        this.exerciseNumber = exerciseNumber;
-    }
 }

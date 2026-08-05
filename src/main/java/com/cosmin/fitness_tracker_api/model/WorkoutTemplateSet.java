@@ -1,9 +1,13 @@
 package com.cosmin.fitness_tracker_api.model;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity
 @Table(name = "workout_template_sets")
+@Getter
+@Setter
 public class WorkoutTemplateSet {
 
     @Id
@@ -32,53 +36,5 @@ public class WorkoutTemplateSet {
     public WorkoutTemplateSet() {
     }
 
-    public Long getId() {
-        return id;
-    }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Integer getSetNumber() {
-        return setNumber;
-    }
-
-    public void setSetNumber(Integer setNumber) {
-        this.setNumber = setNumber;
-    }
-
-    public Double getTargetWeight() {
-        return targetWeight;
-    }
-
-    public void setTargetWeight(Double targetWeight) {
-        this.targetWeight = targetWeight;
-    }
-
-    public Integer getTargetReps() {
-        return targetReps;
-    }
-
-    public void setTargetReps(Integer targetReps) {
-        this.targetReps = targetReps;
-    }
-
-    public Integer getTargetRir() {
-        return targetRir;
-    }
-
-    public void setTargetRir(Integer targetRir) {
-        this.targetRir = targetRir;
-    }
-
-    public WorkoutTemplateExercise getWorkoutTemplateExercise() {
-        return workoutTemplateExercise;
-    }
-
-    public void setWorkoutTemplateExercise(
-            WorkoutTemplateExercise workoutTemplateExercise
-    ) {
-        this.workoutTemplateExercise = workoutTemplateExercise;
-    }
 }

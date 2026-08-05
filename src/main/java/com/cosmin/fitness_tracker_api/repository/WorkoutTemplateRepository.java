@@ -1,6 +1,5 @@
 package com.cosmin.fitness_tracker_api.repository;
 
-import com.cosmin.fitness_tracker_api.model.User;
 import com.cosmin.fitness_tracker_api.model.WorkoutTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,5 +16,5 @@ public interface WorkoutTemplateRepository extends JpaRepository<WorkoutTemplate
 
     Page<WorkoutTemplate> findByUserUsername(String userUsername, Pageable pageable);
 
-    String user(User user);
+
 }

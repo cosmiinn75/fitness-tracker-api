@@ -14,7 +14,7 @@ import java.util.Optional;
 
 @Repository
 public interface WorkoutRepository extends JpaRepository<Workout, Long> {
-    Page<Workout> findByUserUsernameOrderByDateDesc(String userUsername, Pageable pageable);
+
 
     Optional<Workout> findByIdAndUserUsername(Long id, String userUsername);
 

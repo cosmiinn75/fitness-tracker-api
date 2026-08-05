@@ -171,7 +171,7 @@ public class ProgressService {
                         workoutExercise -> {
                             List<SetResponse> setResponses = workoutExercise.getExerciseSets()
                                     .stream()
-                                    .map(workoutMapper::toExerciseSetResponse)
+                                    .map(workoutMapper::toSetResponse)
                                     .toList();
                             double estimatedOneRepMax = calculateEstimatedOneRepMax(workoutExercise);
 

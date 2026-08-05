@@ -2,12 +2,16 @@ package com.cosmin.fitness_tracker_api.model;
 
 import com.cosmin.fitness_tracker_api.Enum.Status;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDate;
 
 
 @Entity
 @Table(name = "training_goals")
+@Getter
+@Setter
 public class TrainingGoal {
 
     @Id
@@ -52,59 +56,5 @@ public class TrainingGoal {
     public TrainingGoal() {
     }
 
-    public Long getId() {
-        return id;
-    }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public LocalDate getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDate createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDate getTargetDate() {
-        return targetDate;
-    }
-
-    public void setTargetDate(LocalDate targetDate) {
-        this.targetDate = targetDate;
-    }
-
-    public Integer getTargetReps() {
-        return targetReps;
-    }
-
-    public void setTargetReps(Integer targetReps) {
-        this.targetReps = targetReps;
-    }
-
-    public Double getTargetWeight() {
-        return targetWeight;
-    }
-
-    public void setTargetWeight(Double targetWeight) {
-        this.targetWeight = targetWeight;
-    }
-
-    public ExerciseDefinition getExerciseDefinition() {
-        return exerciseDefinition;
-    }
-
-    public void setExerciseDefinition(ExerciseDefinition exerciseDefinition) {
-        this.exerciseDefinition = exerciseDefinition;
-    }
-
-    public User getUser() {
-        return user;
-    }
-
-    public void setUser(User user) {
-        this.user = user;
-    }
 }

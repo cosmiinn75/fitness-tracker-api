@@ -16,7 +16,7 @@ public interface WorkoutExerciseRepository extends JpaRepository<WorkoutExercise
 
     List<WorkoutExercise> findByWorkoutOrderByExerciseNumberAsc(Workout workout);
 
-    void deleteByWorkout(Workout workout);
+
 
     @Query(
             """

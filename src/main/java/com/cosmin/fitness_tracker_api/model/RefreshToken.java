@@ -2,11 +2,15 @@ package com.cosmin.fitness_tracker_api.model;
 
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "refreshTokens")
+@Getter
+@Setter
 public class RefreshToken {
 
     @Id
@@ -29,14 +33,6 @@ public class RefreshToken {
     public RefreshToken() {
     }
 
-    public RefreshToken(Long id, Instant revokedAt, Instant expiresAt, User user, Instant createdAt, String tokenHash) {
-        this.id = id;
-        this.revokedAt = revokedAt;
-        this.expiresAt = expiresAt;
-        this.user = user;
-        this.createdAt = createdAt;
-        this.token = tokenHash;
-    }
 
     public void revoke() {
         this.revokedAt = Instant.now();
@@ -54,51 +50,5 @@ public class RefreshToken {
         return expiresAt.isBefore(Instant.now());
     }
 
-    public Long getId() {
-        return id;
-    }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Instant getRevokedAt() {
-        return revokedAt;
-    }
-
-    public void setRevokedAt(Instant revokedAt) {
-        this.revokedAt = revokedAt;
-    }
-
-    public Instant getExpiresAt() {
-        return expiresAt;
-    }
-
-    public void setExpiresAt(Instant expiresAt) {
-        this.expiresAt = expiresAt;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public User getUser() {
-        return user;
-    }
-
-    public void setUser(User user) {
-        this.user = user;
-    }
-
-    public String getToken() {
-        return token;
-    }
-
-    public void setToken(String tokenHash) {
-        this.token = tokenHash;
-    }
 }

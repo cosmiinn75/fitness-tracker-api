@@ -10,7 +10,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -24,7 +23,7 @@ public interface TrainingGoalRepository extends JpaRepository<TrainingGoal,Long>
 
     Page<TrainingGoal> findByUserUsernameOrderByIdAsc(String userUsername, Pageable pageable);
 
-    List<TrainingGoal> findByUserUsernameOrderByIdAsc(String userUsername);
+
 
     @Query(
             value = """
