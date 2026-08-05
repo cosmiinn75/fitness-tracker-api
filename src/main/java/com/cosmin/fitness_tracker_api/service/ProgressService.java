@@ -2,7 +2,12 @@ package com.cosmin.fitness_tracker_api.service;
 
 import com.cosmin.fitness_tracker_api.DTO.*;
 import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
-import com.cosmin.fitness_tracker_api.exception.*;
+import com.cosmin.fitness_tracker_api.exception.ExerciseDefinitionNotFoundException;
+import com.cosmin.fitness_tracker_api.exception.InvalidDateRangeException;
+import com.cosmin.fitness_tracker_api.exception.PersonalRecordNotFoundException;
+import com.cosmin.fitness_tracker_api.exception.WorkoutNotFoundException;
+import com.cosmin.fitness_tracker_api.mapper.ProgressMapper;
+import com.cosmin.fitness_tracker_api.mapper.WorkoutMapper;
 import com.cosmin.fitness_tracker_api.model.ExerciseDefinition;
 import com.cosmin.fitness_tracker_api.model.ExerciseSet;
 import com.cosmin.fitness_tracker_api.model.Workout;
@@ -16,7 +21,6 @@ import com.cosmin.fitness_tracker_api.security.CurrentUserProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,14 +40,18 @@ public class ProgressService {
     private final ExerciseDefinitionRepository exerciseDefinitionRepository;
     private final WorkoutExerciseRepository workoutExerciseRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final ProgressMapper progressMapper;
+    private final WorkoutMapper workoutMapper;
 
 
-    public ProgressService(WorkoutRepository workoutRepository, ExerciseSetRepository exerciseSetRepository, ExerciseDefinitionRepository exerciseDefinitionRepository, WorkoutExerciseRepository workoutExerciseRepository, CurrentUserProvider currentUserProvider) {
+    public ProgressService(WorkoutRepository workoutRepository, ExerciseSetRepository exerciseSetRepository, ExerciseDefinitionRepository exerciseDefinitionRepository, WorkoutExerciseRepository workoutExerciseRepository, CurrentUserProvider currentUserProvider, ProgressMapper progressMapper, WorkoutMapper workoutMapper) {
         this.workoutRepository = workoutRepository;
         this.exerciseSetRepository = exerciseSetRepository;
         this.exerciseDefinitionRepository = exerciseDefinitionRepository;
         this.workoutExerciseRepository = workoutExerciseRepository;
         this.currentUserProvider = currentUserProvider;
+        this.progressMapper = progressMapper;
+        this.workoutMapper = workoutMapper;
     }
 
     public WorkoutVolumeResponse getWorkoutVolumeById(Long id) {
@@ -55,7 +63,8 @@ public class ProgressService {
                         () -> new WorkoutNotFoundException("Workout with id: " + id + " not found")
                 );
 
-        return new  WorkoutVolumeResponse(calculateWorkoutVolume(workout));
+
+        return progressMapper.toWorkoutVolumeResponse(calculateWorkoutVolume(workout));
     }
 
 
@@ -75,11 +84,7 @@ public class ProgressService {
                 .mapToDouble(this::calculateWorkoutVolume)
                 .sum();
 
-        return new  VolumeProgressResponse(
-                aWeekAgo,
-                today,
-                totalVolume
-        );
+      return progressMapper.toVolumeProgressResponse(aWeekAgo,today,totalVolume);
 
     }
 
@@ -91,15 +96,7 @@ public class ProgressService {
 
         Page<PersonalRecordProjection> personalRecords = exerciseSetRepository.findBestExerciseSets(username,pageable);
 
-        Page<PersonalRecordResponse> responses = personalRecords.map(projection ->
-                new   PersonalRecordResponse(
-                        projection.getExerciseDefinitionId(),
-                        projection.getExerciseName(),
-                        projection.getWeight(),
-                        projection.getReps(),
-                        projection.getRir(),
-                        projection.getWorkoutDate()
-                ));
+        Page<PersonalRecordResponse> responses = personalRecords.map(progressMapper::toPersonalRecordResponse);
 
        return PagedResponse.from(responses);
     }
@@ -129,14 +126,8 @@ public class ProgressService {
                 .orElseThrow(() -> new PersonalRecordNotFoundException("No sets found for this exercise"));
 
 
-        return new PersonalRecordResponse(
-                exerciseDefinition.getId(),
-                exerciseDefinition.getName(),
-                bestSet.getWeight(),
-                bestSet.getReps(),
-                bestSet.getRir(),
-                bestSet.getWorkoutExercise().getWorkout().getDate()
-        );
+
+        return progressMapper.toPersonalRecordResponse(exerciseDefinition,bestSet);
     }
 
 
@@ -155,11 +146,8 @@ public class ProgressService {
                 .mapToDouble(this::calculateWorkoutVolume)
                 .sum();
 
-        return new   VolumeProgressResponse(
-                aMonthAgo,
-                today,
-                totalVolume
-        );
+
+        return progressMapper.toVolumeProgressResponse(aMonthAgo,today,totalVolume);
     }
     @Transactional(readOnly = true)
     public PagedResponse<WorkoutExerciseHistoryResponse> getWorkoutHistory(Long exerciseDefinitionId, LocalDate startDate, LocalDate endDate, Integer page , Integer pageSize) {
@@ -183,11 +171,11 @@ public class ProgressService {
                         workoutExercise -> {
                             List<SetResponse> setResponses = workoutExercise.getExerciseSets()
                                     .stream()
-                                    .map(this::toSetResponse)
+                                    .map(workoutMapper::toExerciseSetResponse)
                                     .toList();
+                            double estimatedOneRepMax = calculateEstimatedOneRepMax(workoutExercise);
 
-                            return toExerciseHistoryResponse(workoutExercise, setResponses);
-
+                            return  progressMapper.toWorkoutExerciseHistoryResponse(workoutExercise,setResponses,estimatedOneRepMax);
                         }
                 );
 
@@ -258,7 +246,8 @@ public class ProgressService {
                         .map(Workout::getDate)
                         .orElse(null);
 
-        return new SummaryResponse(
+
+        return progressMapper.toSummaryResponse(
                 totalWorkouts,
                 trainingDaysLast7Days,
                 trainingDaysLast30Days,
@@ -285,47 +274,27 @@ public class ProgressService {
         return volume;
     }
 
-
-
-
-
-
-    private WorkoutExerciseHistoryResponse toExerciseHistoryResponse(
-            WorkoutExercise exercise,
-            List<SetResponse> setResponses
+    private double calculateEstimatedOneRepMax(
+            WorkoutExercise workoutExercise
     ) {
         double estimatedOneRepMax = 0.0;
 
-        for (SetResponse setResponse : setResponses) {
-            double oneRepMax = setResponse.weight()
-                    * (1 + setResponse.reps() / 30.0);
-            oneRepMax = Math.round(oneRepMax * 100.0) / 100.0;
+        for (ExerciseSet exerciseSet
+                : workoutExercise.getExerciseSets()) {
+
+            double oneRepMax =
+                    exerciseSet.getWeight()
+                            * (1 + exerciseSet.getReps() / 30.0);
+
+            oneRepMax =
+                    Math.round(oneRepMax * 100.0) / 100.0;
+
             if (oneRepMax > estimatedOneRepMax) {
                 estimatedOneRepMax = oneRepMax;
             }
         }
 
-        return new WorkoutExerciseHistoryResponse(
-                exercise.getWorkout().getId(),
-                exercise.getId(),
-                exercise.getExerciseNumber(),
-                exercise.getExerciseDefinition().getName(),
-                estimatedOneRepMax,
-                exercise.getWorkout().getDate(),
-                setResponses
-        );
+        return estimatedOneRepMax;
     }
-
-    private SetResponse toSetResponse(ExerciseSet exerciseSet) {
-        return new SetResponse(
-                exerciseSet.getId(),
-                exerciseSet.getSetNumber(),
-                exerciseSet.getWeight(),
-                exerciseSet.getReps(),
-                exerciseSet.getRir()
-        );
-    }
-
-
 
 }

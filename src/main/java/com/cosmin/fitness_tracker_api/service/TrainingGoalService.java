@@ -6,6 +6,7 @@ import com.cosmin.fitness_tracker_api.DTO.TrainingGoalResponse;
 import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.Status;
 import com.cosmin.fitness_tracker_api.exception.*;
+import com.cosmin.fitness_tracker_api.mapper.TrainingGoalMapper;
 import com.cosmin.fitness_tracker_api.model.*;
 import com.cosmin.fitness_tracker_api.repository.ExerciseDefinitionRepository;
 import com.cosmin.fitness_tracker_api.repository.TrainingGoalRepository;
@@ -26,12 +27,14 @@ public class TrainingGoalService {
     private final ExerciseDefinitionRepository exerciseDefinitionRepository;
     private final UserRepository userRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final TrainingGoalMapper trainingGoalMapper;
 
-    public TrainingGoalService(TrainingGoalRepository trainingGoalRepository, ExerciseDefinitionRepository exerciseDefinitionRepository, UserRepository userRepository, CurrentUserProvider currentUserProvider) {
+    public TrainingGoalService(TrainingGoalRepository trainingGoalRepository, ExerciseDefinitionRepository exerciseDefinitionRepository, UserRepository userRepository, CurrentUserProvider currentUserProvider, TrainingGoalMapper trainingGoalMapper) {
         this.trainingGoalRepository = trainingGoalRepository;
         this.exerciseDefinitionRepository = exerciseDefinitionRepository;
         this.userRepository = userRepository;
         this.currentUserProvider = currentUserProvider;
+        this.trainingGoalMapper = trainingGoalMapper;
     }
 
     @Transactional
@@ -78,37 +81,18 @@ public class TrainingGoalService {
 
         TrainingGoal savedGoal = trainingGoalRepository.save(trainingGoal);
 
-        return new TrainingGoalResponse(
-                trainingGoal.getId(),
-                savedGoal.getExerciseDefinition().getName(),
-                savedGoal.getTargetWeight(),
-                savedGoal.getTargetReps(),
-                savedGoal.getTargetDate(),
-                trainingGoal.getStatus()
-        );
+        return trainingGoalMapper.toResponse(savedGoal);
     }
 
 
 
-    @Transactional
+    @Transactional(readOnly = true)
     public PagedResponse<TrainingGoalResponse> getTrainingGoals(int page,int size) {
 
         String username = currentUserProvider.getCurrentUsername();
         Pageable pageable = PageRequest.of(page, size);
         Page<TrainingGoalResponse> trainingGoalPage = trainingGoalRepository.findByUserUsernameOrderByIdAsc(username,pageable)
-                .map(
-                        trainingGoal -> new TrainingGoalResponse(
-                                trainingGoal.getId(),
-                                trainingGoal.getExerciseDefinition().getName(),
-                                trainingGoal.getTargetWeight(),
-                                trainingGoal.getTargetReps(),
-                                trainingGoal.getTargetDate(),
-                                trainingGoal.getStatus()
-                        )
-                );
-
-
-
+                .map(trainingGoalMapper::toResponse);
         return PagedResponse.from(trainingGoalPage);
     }
 
@@ -127,16 +111,8 @@ public class TrainingGoalService {
         }
 
         trainingGoal.setStatus(Status.CANCELLED);
-        trainingGoalRepository.save(trainingGoal);
 
-        return new TrainingGoalResponse(
-                trainingGoalId,
-                trainingGoal.getExerciseDefinition().getName(),
-                trainingGoal.getTargetWeight(),
-                trainingGoal.getTargetReps(),
-                trainingGoal.getTargetDate(),
-                trainingGoal.getStatus()
-        );
+        return trainingGoalMapper.toResponse(trainingGoal);
     }
 
 

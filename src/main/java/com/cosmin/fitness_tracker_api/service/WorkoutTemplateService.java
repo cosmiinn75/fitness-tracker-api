@@ -1,10 +1,28 @@
 package com.cosmin.fitness_tracker_api.service;
 
-import com.cosmin.fitness_tracker_api.DTO.*;
+import com.cosmin.fitness_tracker_api.DTO.PagedResponse;
+import com.cosmin.fitness_tracker_api.DTO.WorkoutRequest;
+import com.cosmin.fitness_tracker_api.DTO.WorkoutTemplateExerciseRequest;
+import com.cosmin.fitness_tracker_api.DTO.WorkoutTemplateRequest;
+import com.cosmin.fitness_tracker_api.DTO.WorkoutTemplateResponse;
+import com.cosmin.fitness_tracker_api.DTO.WorkoutTemplateSetRequest;
 import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
-import com.cosmin.fitness_tracker_api.exception.*;
-import com.cosmin.fitness_tracker_api.model.*;
-import com.cosmin.fitness_tracker_api.repository.*;
+import com.cosmin.fitness_tracker_api.exception.DuplicateExerciseDefinitionException;
+import com.cosmin.fitness_tracker_api.exception.ExerciseDefinitionNotFoundException;
+import com.cosmin.fitness_tracker_api.exception.NameAlreadyExistsException;
+import com.cosmin.fitness_tracker_api.exception.UserNotFoundException;
+import com.cosmin.fitness_tracker_api.exception.WorkoutTemplateNotFoundException;
+import com.cosmin.fitness_tracker_api.mapper.WorkoutTemplateMapper;
+import com.cosmin.fitness_tracker_api.model.ExerciseDefinition;
+import com.cosmin.fitness_tracker_api.model.User;
+import com.cosmin.fitness_tracker_api.model.WorkoutTemplate;
+import com.cosmin.fitness_tracker_api.model.WorkoutTemplateExercise;
+import com.cosmin.fitness_tracker_api.model.WorkoutTemplateSet;
+import com.cosmin.fitness_tracker_api.repository.ExerciseDefinitionRepository;
+import com.cosmin.fitness_tracker_api.repository.UserRepository;
+import com.cosmin.fitness_tracker_api.repository.WorkoutTemplateExerciseRepository;
+import com.cosmin.fitness_tracker_api.repository.WorkoutTemplateRepository;
+import com.cosmin.fitness_tracker_api.repository.WorkoutTemplateSetRepository;
 import com.cosmin.fitness_tracker_api.security.CurrentUserProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -13,7 +31,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 @Service
 public class WorkoutTemplateService {
@@ -24,169 +45,199 @@ public class WorkoutTemplateService {
     private final ExerciseDefinitionRepository exerciseDefinitionRepository;
     private final UserRepository userRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final WorkoutTemplateMapper workoutTemplateMapper;
 
-
-    public WorkoutTemplateService(WorkoutTemplateRepository workoutTemplateRepository, WorkoutTemplateExerciseRepository workoutTemplateExerciseRepository, WorkoutTemplateSetRepository workoutTemplateSetRepository, ExerciseDefinitionRepository exerciseDefinitionRepository, UserRepository userRepository, CurrentUserProvider currentUserProvider) {
+    public WorkoutTemplateService(
+            WorkoutTemplateRepository workoutTemplateRepository,
+            WorkoutTemplateExerciseRepository workoutTemplateExerciseRepository,
+            WorkoutTemplateSetRepository workoutTemplateSetRepository,
+            ExerciseDefinitionRepository exerciseDefinitionRepository,
+            UserRepository userRepository,
+            CurrentUserProvider currentUserProvider,
+            WorkoutTemplateMapper workoutTemplateMapper
+    ) {
         this.workoutTemplateRepository = workoutTemplateRepository;
-        this.workoutTemplateExerciseRepository = workoutTemplateExerciseRepository;
-        this.workoutTemplateSetRepository = workoutTemplateSetRepository;
-        this.exerciseDefinitionRepository = exerciseDefinitionRepository;
+        this.workoutTemplateExerciseRepository =
+                workoutTemplateExerciseRepository;
+        this.workoutTemplateSetRepository =
+                workoutTemplateSetRepository;
+        this.exerciseDefinitionRepository =
+                exerciseDefinitionRepository;
         this.userRepository = userRepository;
         this.currentUserProvider = currentUserProvider;
+        this.workoutTemplateMapper = workoutTemplateMapper;
     }
 
     @Transactional
-    public WorkoutTemplateResponse createWorkoutTemplate(WorkoutTemplateRequest request){
-        String username = currentUserProvider.getCurrentUsername();
+    public WorkoutTemplateResponse createWorkoutTemplate(
+            WorkoutTemplateRequest request
+    ) {
+        String username =
+                currentUserProvider.getCurrentUsername();
 
         User user = userRepository.findByUsername(username)
-                .orElseThrow( () -> new UserNotFoundException(username + " not found"));
+                .orElseThrow(() ->
+                        new UserNotFoundException(
+                                username + " not found"
+                        )
+                );
 
         String cleanName = request.workoutTemplateName()
                 .strip()
                 .replaceAll("\\s+", " ");
 
-
         String normalizedName = normalizeName(cleanName);
 
-        WorkoutTemplate template = workoutTemplateRepository.findByUserUsernameAndNormalizedName(username,normalizedName)
-                .orElse(null);
+        boolean templateExists =
+                workoutTemplateRepository
+                        .findByUserUsernameAndNormalizedName(
+                                username,
+                                normalizedName
+                        )
+                        .isPresent();
 
-        if(template != null){
-            throw new NameAlreadyExistsException("Workout template already exists");
+        if (templateExists) {
+            throw new NameAlreadyExistsException(
+                    "Workout template already exists"
+            );
         }
 
-        WorkoutTemplate workoutTemplate = new WorkoutTemplate();
+        WorkoutTemplate workoutTemplate =
+                new WorkoutTemplate();
+
         workoutTemplate.setCreatedAt(LocalDate.now());
         workoutTemplate.setTemplateName(cleanName);
-        workoutTemplate.setUser(user);
         workoutTemplate.setNormalizedName(normalizedName);
+        workoutTemplate.setUser(user);
 
-        WorkoutTemplate savedWorkout = workoutTemplateRepository.save(workoutTemplate);
+        WorkoutTemplate savedTemplate =
+                workoutTemplateRepository.save(workoutTemplate);
 
-        List<WorkoutTemplateExerciseResponse> exerciseResponses =
-                createWorkoutTemplateExercisesFromRequest(
-                        savedWorkout,
-                        request.templateExerciseRequest(),
-                        username
-                );
+        createWorkoutTemplateExercisesFromRequest(
+                savedTemplate,
+                request.templateExerciseRequest(),
+                username
+        );
 
-        return toWorkoutTemplateResponse(savedWorkout, exerciseResponses);
+        return workoutTemplateMapper.toResponse(savedTemplate);
     }
 
     @Transactional(readOnly = true)
-    public WorkoutTemplateResponse getTemplateById(Long templateId){
-        String username = currentUserProvider.getCurrentUsername();
+    public WorkoutTemplateResponse getTemplateById(
+            Long templateId
+    ) {
+        String username =
+                currentUserProvider.getCurrentUsername();
 
-        WorkoutTemplate template = workoutTemplateRepository.findByIdAndUserUsername(templateId,username)
-                .orElseThrow(() -> new WorkoutTemplateNotFoundException("Workout template with id "+ templateId + " not found"));
+        WorkoutTemplate template =
+                workoutTemplateRepository
+                        .findByIdAndUserUsername(
+                                templateId,
+                                username
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutTemplateNotFoundException(
+                                        "Workout template with id "
+                                                + templateId
+                                                + " not found"
+                                )
+                        );
 
-
-        return toWorkoutTemplateResponse(template);
+        return workoutTemplateMapper.toResponse(template);
     }
 
-
     @Transactional(readOnly = true)
-    public PagedResponse<WorkoutTemplateResponse> getAllTemplates(int page, int size){
+    public PagedResponse<WorkoutTemplateResponse> getAllTemplates(
+            int page,
+            int size
+    ) {
+        String username =
+                currentUserProvider.getCurrentUsername();
 
-        String username = currentUserProvider.getCurrentUsername();
+        Pageable pageable =
+                PageRequest.of(page, size);
 
-        Pageable pageable = PageRequest.of(page, size);
+        Page<WorkoutTemplateResponse> responses =
+                workoutTemplateRepository
+                        .findByUserUsername(
+                                username,
+                                pageable
+                        )
+                        .map(workoutTemplateMapper::toResponse);
 
-        Page<WorkoutTemplateResponse> workoutTemplates = workoutTemplateRepository.
-                findByUserUsername(username,pageable)
-                .map(this::toWorkoutTemplateResponse);
-
-        return PagedResponse.from(workoutTemplates);
-
+        return PagedResponse.from(responses);
     }
 
     @Transactional
-    public void deleteTemplateById(Long templateId){
+    public void deleteTemplateById(Long templateId) {
+        String username =
+                currentUserProvider.getCurrentUsername();
 
-        String username = currentUserProvider.getCurrentUsername();
-
-        WorkoutTemplate template = workoutTemplateRepository.findByIdAndUserUsername(templateId,username)
-                .orElseThrow(() -> new WorkoutTemplateNotFoundException("Workout template with id "+ templateId + " not found"));
+        WorkoutTemplate template =
+                workoutTemplateRepository
+                        .findByIdAndUserUsername(
+                                templateId,
+                                username
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutTemplateNotFoundException(
+                                        "Workout template with id "
+                                                + templateId
+                                                + " not found"
+                                )
+                        );
 
         workoutTemplateRepository.delete(template);
     }
 
     @Transactional(readOnly = true)
-    public WorkoutRequest prepareWorkoutFromTemplate(Long templateId){
-        String username = currentUserProvider.getCurrentUsername();
+    public WorkoutRequest prepareWorkoutFromTemplate(
+            Long templateId
+    ) {
+        String username =
+                currentUserProvider.getCurrentUsername();
 
-        WorkoutTemplate workoutTemplate = workoutTemplateRepository
-                .findByIdAndUserUsername(templateId,username)
-                .orElseThrow( () -> new WorkoutTemplateNotFoundException("Workout template with id " + templateId + " not found"));
+        WorkoutTemplate workoutTemplate =
+                workoutTemplateRepository
+                        .findByIdAndUserUsername(
+                                templateId,
+                                username
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutTemplateNotFoundException(
+                                        "Workout template with id "
+                                                + templateId
+                                                + " not found"
+                                )
+                        );
 
-        List<WorkoutTemplateExercise> templateExercises = workoutTemplate.getTemplateExercises();
-
-        List<WorkoutExerciseRequest> exerciseRequests = templateExercises
-                .stream()
-                .map(exercise -> {
-
-                    List<SetRequest> setRequests = exercise.getTemplateSets()
-                            .stream()
-                            .map(set -> {
-                                return new SetRequest(
-                                        set.getTargetWeight(),
-                                        set.getTargetReps(),
-                                        set.getTargetRir()
-                                );
-                            })
-                            .toList();
-                    return new WorkoutExerciseRequest(
-                            exercise.getExerciseDefinition().getId(),
-                            setRequests
-                    );
-                }).toList();
-
-        return new WorkoutRequest(
-            workoutTemplate.getTemplateName(),
-            LocalDate.now(),
-            exerciseRequests
+        return workoutTemplateMapper.toWorkoutRequest(
+                workoutTemplate,
+                LocalDate.now()
         );
-
     }
 
-    private WorkoutTemplateResponse toWorkoutTemplateResponse(WorkoutTemplate workoutTemplate){
-
-        List<WorkoutTemplateExercise> workoutExercises =workoutTemplateExerciseRepository.findByWorkoutTemplateOrderByExerciseNumberAsc(workoutTemplate);
-
-        List<WorkoutTemplateExerciseResponse> exerciseResponses = new ArrayList<>();
-        for(WorkoutTemplateExercise workoutExercise : workoutExercises){
-
-            List<WorkoutTemplateSetResponse> exerciseSets = workoutTemplateSetRepository.findByWorkoutTemplateExerciseOrderBySetNumberAsc(workoutExercise)
-                    .stream().map(
-                            this::toWorkoutTemplateSetResponse
-                    ).toList();
-
-            exerciseResponses.add(toWorkoutTemplateExerciseResponse(workoutExercise, exerciseSets));
-        }
-
-        return  toWorkoutTemplateResponse(workoutTemplate,exerciseResponses);
-    }
-
-    private List<WorkoutTemplateExerciseResponse>
-    createWorkoutTemplateExercisesFromRequest(
+    private void createWorkoutTemplateExercisesFromRequest(
             WorkoutTemplate workoutTemplate,
             List<WorkoutTemplateExerciseRequest> exerciseRequests,
             String username
     ) {
-        List<WorkoutTemplateExerciseResponse> exerciseResponses =
-                new ArrayList<>();
+        Set<Long> exerciseDefinitionIds =
+                new HashSet<>();
 
-        Set<Long> exerciseDefinitionIds = new HashSet<>();
+        for (int index = 0;
+             index < exerciseRequests.size();
+             index++) {
 
-        for (int i = 0; i < exerciseRequests.size(); i++) {
             WorkoutTemplateExerciseRequest exerciseRequest =
-                    exerciseRequests.get(i);
+                    exerciseRequests.get(index);
 
             Long exerciseDefinitionId =
                     exerciseRequest.exerciseDefinitionId();
 
-            if (!exerciseDefinitionIds.add(exerciseDefinitionId)) {
+            if (!exerciseDefinitionIds.add(
+                    exerciseDefinitionId
+            )) {
                 throw new DuplicateExerciseDefinitionException(
                         "Exercise definition with id "
                                 + exerciseDefinitionId
@@ -195,97 +246,78 @@ public class WorkoutTemplateService {
             }
 
             ExerciseDefinition exerciseDefinition =
-                    exerciseDefinitionRepository.findByIdAccessible(
-                            exerciseDefinitionId,
-                            username,
-                            ExerciseType.SYSTEM
-                    ).orElseThrow(() ->
-                            new ExerciseDefinitionNotFoundException(
-                                    "Exercise definition with id "
-                                            + exerciseDefinitionId
-                                            + " not found"
+                    exerciseDefinitionRepository
+                            .findByIdAccessible(
+                                    exerciseDefinitionId,
+                                    username,
+                                    ExerciseType.SYSTEM
                             )
-                    );
+                            .orElseThrow(() ->
+                                    new ExerciseDefinitionNotFoundException(
+                                            "Exercise definition with id "
+                                                    + exerciseDefinitionId
+                                                    + " not found"
+                                    )
+                            );
 
             WorkoutTemplateExercise templateExercise =
                     new WorkoutTemplateExercise();
 
-            templateExercise.setExerciseDefinition(exerciseDefinition);
-            templateExercise.setExerciseNumber(i + 1);
+            templateExercise.setExerciseDefinition(
+                    exerciseDefinition
+            );
 
-            workoutTemplate.addTemplateExercise(templateExercise);
+            templateExercise.setExerciseNumber(
+                    index + 1
+            );
 
-            WorkoutTemplateExercise savedTemplateExercise =
-                    workoutTemplateExerciseRepository.save(templateExercise);
+            workoutTemplate.addTemplateExercise(
+                    templateExercise
+            );
 
-            List<WorkoutTemplateSetResponse> templateSets =
-                    createWorkoutTemplateSetsFromRequest(
-                            savedTemplateExercise,
-                            exerciseRequest.templateSetRequests()
+            WorkoutTemplateExercise savedExercise =
+                    workoutTemplateExerciseRepository.save(
+                            templateExercise
                     );
 
-            exerciseResponses.add(
-                    toWorkoutTemplateExerciseResponse(
-                            savedTemplateExercise,
-                            templateSets
-                    )
+            createWorkoutTemplateSetsFromRequest(
+                    savedExercise,
+                    exerciseRequest.templateSetRequests()
             );
         }
-
-        return exerciseResponses;
     }
 
-    private List<WorkoutTemplateSetResponse> createWorkoutTemplateSetsFromRequest(WorkoutTemplateExercise workoutExercise , List<WorkoutTemplateSetRequest> setRequests){
-        List<WorkoutTemplateSetResponse> setResponses = new ArrayList<>();
-        for(int i = 0 ; i < setRequests.size() ; i++) {
-            WorkoutTemplateSetRequest setRequest = setRequests.get(i);
+    private void createWorkoutTemplateSetsFromRequest(
+            WorkoutTemplateExercise templateExercise,
+            List<WorkoutTemplateSetRequest> setRequests
+    ) {
+        for (int index = 0;
+             index < setRequests.size();
+             index++) {
 
-            WorkoutTemplateSet exerciseSet = new WorkoutTemplateSet();
-            workoutExercise.addTemplateSet(exerciseSet);
-            exerciseSet.setSetNumber(i+1);
-            exerciseSet.setTargetReps(setRequest.targetReps());
-            exerciseSet.setTargetRir(setRequest.targetRir());
-            exerciseSet.setTargetWeight(setRequest.targetWeight());
-            WorkoutTemplateSet savedSet = workoutTemplateSetRepository.save(exerciseSet);
+            WorkoutTemplateSetRequest setRequest =
+                    setRequests.get(index);
 
+            WorkoutTemplateSet templateSet =
+                    new WorkoutTemplateSet();
 
-            setResponses.add(toWorkoutTemplateSetResponse(savedSet));
+            templateSet.setSetNumber(index + 1);
+            templateSet.setTargetWeight(
+                    setRequest.targetWeight()
+            );
+            templateSet.setTargetReps(
+                    setRequest.targetReps()
+            );
+            templateSet.setTargetRir(
+                    setRequest.targetRir()
+            );
 
+            templateExercise.addTemplateSet(templateSet);
+
+            workoutTemplateSetRepository.save(templateSet);
         }
-
-        return setResponses;
     }
 
-    private WorkoutTemplateResponse toWorkoutTemplateResponse(WorkoutTemplate workoutTemplate,
-                                                              List<WorkoutTemplateExerciseResponse> exerciseResponses) {
-        return new WorkoutTemplateResponse(
-                workoutTemplate.getId(),
-                workoutTemplate.getTemplateName(),
-                workoutTemplate.getCreatedAt(),
-                exerciseResponses
-        );
-    }
-
-    private WorkoutTemplateExerciseResponse toWorkoutTemplateExerciseResponse(WorkoutTemplateExercise exercise, List<WorkoutTemplateSetResponse> setResponses){
-        return new WorkoutTemplateExerciseResponse(
-                exercise.getId(),
-                exercise.getExerciseDefinition().getId(),
-                exercise.getExerciseNumber(),
-                exercise.getExerciseDefinition().getMuscleGroup(),
-                exercise.getExerciseDefinition().getName(),
-                setResponses
-        );
-    }
-
-    private WorkoutTemplateSetResponse toWorkoutTemplateSetResponse(WorkoutTemplateSet exerciseSet) {
-        return new WorkoutTemplateSetResponse(
-                exerciseSet.getId(),
-                exerciseSet.getSetNumber(),
-                exerciseSet.getTargetWeight(),
-                exerciseSet.getTargetReps(),
-                exerciseSet.getTargetRir()
-        );
-    }
     private String normalizeName(String name) {
         return name.strip()
                 .replaceAll("\\s+", " ")

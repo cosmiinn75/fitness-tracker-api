@@ -1,9 +1,9 @@
 package com.cosmin.fitness_tracker_api.service;
 
-
 import com.cosmin.fitness_tracker_api.DTO.*;
 import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.exception.*;
+import com.cosmin.fitness_tracker_api.mapper.WorkoutMapper;
 import com.cosmin.fitness_tracker_api.model.*;
 import com.cosmin.fitness_tracker_api.repository.*;
 import com.cosmin.fitness_tracker_api.security.CurrentUserProvider;
@@ -29,396 +29,700 @@ public class WorkoutService {
     private final UserRepository userRepository;
     private final TrainingGoalService trainingGoalService;
     private final CurrentUserProvider currentUserProvider;
+    private final WorkoutMapper workoutMapper;
 
-    public WorkoutService(ExerciseDefinitionRepository exerciseDefinitionRepository, WorkoutRepository workoutRepository, WorkoutExerciseRepository workoutExerciseRepository, ExerciseSetRepository exerciseSetRepository, UserRepository userRepository, TrainingGoalService trainingGoalService, CurrentUserProvider currentUserProvider) {
-        this.exerciseDefinitionRepository = exerciseDefinitionRepository;
+    public WorkoutService(
+            ExerciseDefinitionRepository exerciseDefinitionRepository,
+            WorkoutRepository workoutRepository,
+            WorkoutExerciseRepository workoutExerciseRepository,
+            ExerciseSetRepository exerciseSetRepository,
+            UserRepository userRepository,
+            TrainingGoalService trainingGoalService,
+            CurrentUserProvider currentUserProvider,
+            WorkoutMapper workoutMapper
+    ) {
+        this.exerciseDefinitionRepository =
+                exerciseDefinitionRepository;
         this.workoutRepository = workoutRepository;
-        this.workoutExerciseRepository = workoutExerciseRepository;
+        this.workoutExerciseRepository =
+                workoutExerciseRepository;
         this.exerciseSetRepository = exerciseSetRepository;
         this.userRepository = userRepository;
         this.trainingGoalService = trainingGoalService;
         this.currentUserProvider = currentUserProvider;
+        this.workoutMapper = workoutMapper;
     }
 
     @Transactional
-    public CreateWorkoutResponse createWorkout(WorkoutRequest request) {
-        String username = currentUserProvider.getCurrentUsername();
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
+    public CreateWorkoutResponse createWorkout(
+            WorkoutRequest request
+    ) {
+        String username =
+                currentUserProvider.getCurrentUsername();
 
+        User currentUser =
+                userRepository.findByUsername(username)
+                        .orElseThrow(() ->
+                                new UserNotFoundException(
+                                        "User not found"
+                                )
+                        );
 
         Workout workout = new Workout();
         workout.setWorkoutName(request.workoutName());
         workout.setDate(request.date());
         workout.setUser(currentUser);
 
-        Workout savedWorkout = workoutRepository.save(workout);
+        Workout savedWorkout =
+                workoutRepository.save(workout);
 
-        List<WorkoutExerciseResponse> exerciseResponses = createWorkoutExercisesFromRequest(savedWorkout,request.exerciseRequests(),username);
-        int goalsCompleted = trainingGoalService.completeGoalsFromWorkout(savedWorkout);
-        return toCreateWorkoutResponse(savedWorkout, exerciseResponses,goalsCompleted);
+        createWorkoutExercisesFromRequest(
+                savedWorkout,
+                request.exerciseRequests(),
+                username
+        );
+
+        int goalsCompleted =
+                trainingGoalService
+                        .completeGoalsFromWorkout(savedWorkout);
+
+        return workoutMapper.toCreateResponse(
+                savedWorkout,
+                goalsCompleted
+        );
     }
 
-
-
     @Transactional(readOnly = true)
-    public PagedResponse<WorkoutResponse> getAllWorkoutsFiltered(Integer page ,
-                                                                 Integer size,
-                                                                 String name,
-                                                                 LocalDate startDate,
-                                                                 LocalDate endDate) {
-        String currentUsername = currentUserProvider.getCurrentUsername();
+    public PagedResponse<WorkoutResponse>
+    getAllWorkoutsFiltered(
+            Integer page,
+            Integer size,
+            String name,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        String currentUsername =
+                currentUserProvider.getCurrentUsername();
 
         if (startDate != null
                 && endDate != null
                 && startDate.isAfter(endDate)) {
+
             throw new InvalidDateRangeException(
                     "Start date must be before or equal to end date"
             );
         }
 
-        String normalizedName = name == null || name.isBlank() ? null : name.trim();
+        String normalizedName =
+                name == null || name.isBlank()
+                        ? null
+                        : name.trim();
 
-        Pageable pageable =  PageRequest.of(page,size, Sort.by(Sort.Direction.DESC,"date"));
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Direction.DESC,
+                        "date"
+                )
+        );
 
-       Page<WorkoutResponse> responses = workoutRepository.findFilteredWorkouts(currentUsername,normalizedName,startDate,endDate,pageable)
-                .map(this::toWorkoutResponse);
+        Page<WorkoutResponse> responses =
+                workoutRepository
+                        .findFilteredWorkouts(
+                                currentUsername,
+                                normalizedName,
+                                startDate,
+                                endDate,
+                                pageable
+                        )
+                        .map(workoutMapper::toResponse);
+
         return PagedResponse.from(responses);
     }
 
     @Transactional(readOnly = true)
     public WorkoutResponse getWorkoutById(Long id) {
-        String currentUsername = currentUserProvider.getCurrentUsername();
-        Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername).orElseThrow(() -> new WorkoutNotFoundException("Workout not found"));
+        String currentUsername =
+                currentUserProvider.getCurrentUsername();
 
-        return toWorkoutResponse(workout);
+        Workout workout =
+                workoutRepository
+                        .findByIdAndUserUsername(
+                                id,
+                                currentUsername
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutNotFoundException(
+                                        "Workout not found"
+                                )
+                        );
+
+        return workoutMapper.toResponse(workout);
     }
 
     @Transactional
     public void deleteWorkoutById(Long id) {
-        String currentUsername = currentUserProvider.getCurrentUsername();
+        String currentUsername =
+                currentUserProvider.getCurrentUsername();
 
-        Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername).orElseThrow(() -> new WorkoutNotFoundException("Workout not found"));
+        Workout workout =
+                workoutRepository
+                        .findByIdAndUserUsername(
+                                id,
+                                currentUsername
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutNotFoundException(
+                                        "Workout not found"
+                                )
+                        );
+
         workoutRepository.delete(workout);
-
     }
 
-
-
     @Transactional
-    public WorkoutResponse updateWorkoutMetaData(WorkoutMetaDataRequest request,Long id) {
-        String currentUsername = currentUserProvider.getCurrentUsername();
+    public WorkoutResponse updateWorkoutMetaData(
+            WorkoutMetaDataRequest request,
+            Long id
+    ) {
+        String currentUsername =
+                currentUserProvider.getCurrentUsername();
 
-        Workout workout = workoutRepository.findByIdAndUserUsername(id,currentUsername).orElseThrow(() -> new WorkoutNotFoundException("Workout not found"));
+        Workout workout =
+                workoutRepository
+                        .findByIdAndUserUsername(
+                                id,
+                                currentUsername
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutNotFoundException(
+                                        "Workout not found"
+                                )
+                        );
 
-
-        if(request.workoutName() != null) {
-            workout.setWorkoutName(request.workoutName());
+        if (request.workoutName() != null) {
+            workout.setWorkoutName(
+                    request.workoutName()
+            );
         }
 
-        if(request.date() != null) {
+        if (request.date() != null) {
             workout.setDate(request.date());
         }
 
+        trainingGoalService.completeGoalsFromWorkout(
+                workout
+        );
 
-        trainingGoalService.completeGoalsFromWorkout(workout);
-        return toWorkoutResponse(workoutRepository.save(workout));
+        Workout savedWorkout =
+                workoutRepository.save(workout);
 
+        return workoutMapper.toResponse(savedWorkout);
     }
 
     @Transactional
-    public WorkoutResponse replaceWorkout(Long id, WorkoutRequest request) {
-        String currentUsername = currentUserProvider.getCurrentUsername();
+    public WorkoutResponse replaceWorkout(
+            Long id,
+            WorkoutRequest request
+    ) {
+        String currentUsername =
+                currentUserProvider.getCurrentUsername();
 
-        Workout workout = workoutRepository
-                .findByIdAndUserUsername(id, currentUsername)
-                .orElseThrow(() ->
-                        new WorkoutNotFoundException("Workout not found")
-                );
+        Workout workout =
+                workoutRepository
+                        .findByIdAndUserUsername(
+                                id,
+                                currentUsername
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutNotFoundException(
+                                        "Workout not found"
+                                )
+                        );
 
         workout.setWorkoutName(request.workoutName());
         workout.setDate(request.date());
-
 
         workout.getWorkoutExercises().clear();
 
         workoutRepository.flush();
 
-        List<WorkoutExerciseResponse> exerciseResponses =
-                createWorkoutExercisesFromRequest(
-                        workout,
-                        request.exerciseRequests(),
-                        currentUsername
-                );
+        createWorkoutExercisesFromRequest(
+                workout,
+                request.exerciseRequests(),
+                currentUsername
+        );
 
+        trainingGoalService.completeGoalsFromWorkout(
+                workout
+        );
 
-        trainingGoalService.completeGoalsFromWorkout(workout);
-
-        return toWorkoutResponse(workout, exerciseResponses);
+        return workoutMapper.toResponse(workout);
     }
 
-        @Transactional
-        public WorkoutResponse changeOneSet(UpdateExerciseSetRequest request, Long workoutId, Integer exerciseNumber , Integer setNumber) {
-            String currentUsername = currentUserProvider.getCurrentUsername();
+    @Transactional
+    public WorkoutResponse changeOneSet(
+            UpdateExerciseSetRequest request,
+            Long workoutId,
+            Integer exerciseNumber,
+            Integer setNumber
+    ) {
+        String currentUsername =
+                currentUserProvider.getCurrentUsername();
 
-            Workout workout = workoutRepository.findByIdAndUserUsername(workoutId,currentUsername)
-                    .orElseThrow( () -> new WorkoutNotFoundException("Workout with id: " + workoutId + " not found"));
+        Workout workout =
+                workoutRepository
+                        .findByIdAndUserUsername(
+                                workoutId,
+                                currentUsername
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutNotFoundException(
+                                        "Workout with id: "
+                                                + workoutId
+                                                + " not found"
+                                )
+                        );
 
-            WorkoutExercise workoutExercise = getWorkoutExerciseByExerciseNumber(workout,exerciseNumber);
+        WorkoutExercise workoutExercise =
+                getWorkoutExerciseByExerciseNumber(
+                        workout,
+                        exerciseNumber
+                );
 
+        ExerciseSet exerciseSet =
+                getExerciseSetBySetNumber(
+                        workoutExercise,
+                        setNumber
+                );
 
-            ExerciseSet exerciseSet = getExerciseSetBySetNumber(workoutExercise,setNumber);
+        if (request.weight() != null) {
+            exerciseSet.setWeight(request.weight());
+        }
 
-            if (request.weight() != null) {
-                exerciseSet.setWeight(request.weight());
+        if (request.reps() != null) {
+            exerciseSet.setReps(request.reps());
+        }
+
+        if (request.rir() != null) {
+            exerciseSet.setRir(request.rir());
+        }
+
+        trainingGoalService.completeGoalsFromWorkout(
+                workout
+        );
+
+        return workoutMapper.toResponse(workout);
+    }
+
+    @Transactional
+    public WorkoutResponse changeWorkoutExercise(
+            ChangeWorkoutExerciseRequest request,
+            Long workoutId,
+            Integer exerciseNumber
+    ) {
+        String currentUsername =
+                currentUserProvider.getCurrentUsername();
+
+        Workout workout =
+                workoutRepository
+                        .findByIdAndUserUsername(
+                                workoutId,
+                                currentUsername
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutNotFoundException(
+                                        "Workout with id: "
+                                                + workoutId
+                                                + " not found"
+                                )
+                        );
+
+        WorkoutExercise workoutExercise =
+                getWorkoutExerciseByExerciseNumber(
+                        workout,
+                        exerciseNumber
+                );
+
+        ExerciseDefinition newExerciseDefinition =
+                exerciseDefinitionRepository
+                        .findByIdAccessible(
+                                request.exerciseDefinitionId(),
+                                currentUsername,
+                                ExerciseType.SYSTEM
+                        )
+                        .orElseThrow(() ->
+                                new ExerciseDefinitionNotFoundException(
+                                        "Exercise definition with id: "
+                                                + request.exerciseDefinitionId()
+                                                + " not found"
+                                )
+                        );
+
+        workoutExercise.setExerciseDefinition(
+                newExerciseDefinition
+        );
+
+        trainingGoalService.completeGoalsFromWorkout(
+                workout
+        );
+
+        return workoutMapper.toResponse(workout);
+    }
+
+    @Transactional
+    public WorkoutResponse deleteExerciseSet(
+            Long workoutId,
+            Integer exerciseNumber,
+            Integer setNumber
+    ) {
+        String currentUsername =
+                currentUserProvider.getCurrentUsername();
+
+        Workout workout =
+                workoutRepository
+                        .findByIdAndUserUsername(
+                                workoutId,
+                                currentUsername
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutNotFoundException(
+                                        "Workout with id: "
+                                                + workoutId
+                                                + " not found"
+                                )
+                        );
+
+        WorkoutExercise workoutExercise =
+                getWorkoutExerciseByExerciseNumber(
+                        workout,
+                        exerciseNumber
+                );
+
+        ExerciseSet exerciseSet =
+                getExerciseSetBySetNumber(
+                        workoutExercise,
+                        setNumber
+                );
+
+        List<ExerciseSet> exerciseSets =
+                workoutExercise.getExerciseSets();
+
+        exerciseSets.remove(exerciseSet);
+
+        for (ExerciseSet set : exerciseSets) {
+            if (set.getSetNumber() > setNumber) {
+                set.setSetNumber(
+                        set.getSetNumber() - 1
+                );
             }
+        }
 
-            if (request.reps() != null) {
-                exerciseSet.setReps(request.reps());
+        exerciseSetRepository.delete(exerciseSet);
+
+        return workoutMapper.toResponse(workout);
+    }
+
+    @Transactional
+    public WorkoutResponse addSet(
+            SetRequest request,
+            Long workoutId,
+            Integer exerciseNumber
+    ) {
+        String currentUsername =
+                currentUserProvider.getCurrentUsername();
+
+        Workout workout =
+                workoutRepository
+                        .findByIdAndUserUsername(
+                                workoutId,
+                                currentUsername
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutNotFoundException(
+                                        "Workout with id: "
+                                                + workoutId
+                                                + " not found"
+                                )
+                        );
+
+        WorkoutExercise workoutExercise =
+                getWorkoutExerciseByExerciseNumber(
+                        workout,
+                        exerciseNumber
+                );
+
+        List<ExerciseSet> exerciseSets =
+                workoutExercise.getExerciseSets();
+
+        ExerciseSet newSet = new ExerciseSet();
+        newSet.setWeight(request.weight());
+        newSet.setReps(request.reps());
+        newSet.setRir(request.rir());
+        newSet.setWorkoutExercise(workoutExercise);
+        newSet.setSetNumber(exerciseSets.size() + 1);
+
+        exerciseSets.add(newSet);
+        exerciseSetRepository.save(newSet);
+
+        trainingGoalService.completeGoalsFromWorkout(
+                workout
+        );
+
+        return workoutMapper.toResponse(workout);
+    }
+
+    @Transactional
+    public WorkoutResponse deleteWorkoutExercise(
+            Long workoutId,
+            Integer exerciseNumber
+    ) {
+        String currentUsername =
+                currentUserProvider.getCurrentUsername();
+
+        Workout workout =
+                workoutRepository
+                        .findByIdAndUserUsername(
+                                workoutId,
+                                currentUsername
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutNotFoundException(
+                                        "Workout with id: "
+                                                + workoutId
+                                                + " not found"
+                                )
+                        );
+
+        List<WorkoutExercise> workoutExercises =
+                workout.getWorkoutExercises();
+
+        WorkoutExercise workoutExercise =
+                getWorkoutExerciseByExerciseNumber(
+                        workout,
+                        exerciseNumber
+                );
+
+        workoutExercises.remove(workoutExercise);
+
+        for (WorkoutExercise exercise
+                : workoutExercises) {
+
+            if (exercise.getExerciseNumber()
+                    > exerciseNumber) {
+
+                exercise.setExerciseNumber(
+                        exercise.getExerciseNumber() - 1
+                );
             }
-
-            if (request.rir() != null) {
-                exerciseSet.setRir(request.rir());
-            }
-            trainingGoalService.completeGoalsFromWorkout(workout);
-
-            return toWorkoutResponse(workout);
         }
 
+        workoutExerciseRepository.delete(
+                workoutExercise
+        );
 
-        @Transactional
-        public WorkoutResponse changeWorkoutExercise(
-                ChangeWorkoutExerciseRequest request,
-                Long workoutId,
-                Integer exerciseNumber
-        ) {
-            String currentUsername = currentUserProvider.getCurrentUsername();
-
-            Workout workout = workoutRepository
-                    .findByIdAndUserUsername(workoutId, currentUsername)
-                    .orElseThrow(() -> new WorkoutNotFoundException(
-                            "Workout with id: " + workoutId + " not found"
-                    ));
-
-            WorkoutExercise workoutExercise = getWorkoutExerciseByExerciseNumber(workout, exerciseNumber);
-
-            ExerciseDefinition newExerciseDefinition =
-                    exerciseDefinitionRepository
-                            .findByIdAccessible(request.exerciseDefinitionId(),currentUsername,ExerciseType.SYSTEM)
-                            .orElseThrow(() ->
-                                    new ExerciseDefinitionNotFoundException(
-                                            "Exercise definition with id: "
-                                                    + request.exerciseDefinitionId()
-                                                    + " not found"
-                                    )
-                            );
-
-            workoutExercise.setExerciseDefinition(newExerciseDefinition);
-
-            trainingGoalService.completeGoalsFromWorkout(workout);
-
-            return toWorkoutResponse(workout);
-        }
-
-
-        @Transactional
-        public WorkoutResponse deleteExerciseSet(Long workoutId, Integer exerciseNumber, Integer setNumber) {
-            String currentUsername = currentUserProvider.getCurrentUsername();
-
-            Workout workout = workoutRepository.findByIdAndUserUsername(workoutId,currentUsername)
-                    .orElseThrow(() -> new WorkoutNotFoundException("Workout with id: " + workoutId + " not found"));
-
-            WorkoutExercise workoutExercise = getWorkoutExerciseByExerciseNumber(workout, exerciseNumber);
-
-           ExerciseSet exerciseSet = getExerciseSetBySetNumber(workoutExercise,setNumber);
-
-           List<ExerciseSet> exerciseSets = workoutExercise.getExerciseSets();
-
-
-
-
-            exerciseSets.remove(exerciseSet);
-
-           for(ExerciseSet set: exerciseSets) {
-
-               if(set.getSetNumber() > setNumber) {
-                   set.setSetNumber(set.getSetNumber() - 1);
-               }
-
-           }
-
-            exerciseSetRepository.delete(exerciseSet);
-
-            return toWorkoutResponse(workout);
-        }
-
-
-
-
-        @Transactional
-        public WorkoutResponse addSet(SetRequest request, Long workoutId, Integer exerciseNumber) {
-
-            String currentUsername = currentUserProvider.getCurrentUsername();
-
-            Workout workout = workoutRepository.findByIdAndUserUsername(workoutId,currentUsername)
-                    .orElseThrow(() -> new WorkoutNotFoundException("Workout with id: " + workoutId + " not found"));
-
-            WorkoutExercise workoutExercise = getWorkoutExerciseByExerciseNumber(workout, exerciseNumber);
-
-            List<ExerciseSet> exerciseSets = workoutExercise.getExerciseSets();
-
-            ExerciseSet newSet = new ExerciseSet();
-            newSet.setWeight(request.weight());
-            newSet.setReps(request.reps());
-            newSet.setRir(request.rir());
-            newSet.setWorkoutExercise(workoutExercise);
-            newSet.setSetNumber(exerciseSets.size()+1);
-
-            exerciseSets.add(newSet);
-            exerciseSetRepository.save(newSet);
-
-            trainingGoalService.completeGoalsFromWorkout(workout);
-            return toWorkoutResponse(workout);
-        }
-
-
-
-        @Transactional
-        public WorkoutResponse deleteWorkoutExercise(Long workoutId, Integer exerciseNumber) {
-            String currentUsername = currentUserProvider.getCurrentUsername();
-
-            Workout workout = workoutRepository.findByIdAndUserUsername(workoutId,currentUsername)
-                    .orElseThrow(() -> new WorkoutNotFoundException("Workout with id: " + workoutId + " not found"));
-
-
-            List<WorkoutExercise> workoutExercises = workout.getWorkoutExercises();
-            WorkoutExercise workoutExercise = getWorkoutExerciseByExerciseNumber(workout, exerciseNumber);
-
-            workoutExercises.remove(workoutExercise);
-
-            for(WorkoutExercise exercise: workoutExercises) {
-                if(exercise.getExerciseNumber() > exerciseNumber ) {
-                    exercise.setExerciseNumber(exercise.getExerciseNumber() - 1);
-                }
-            }
-
-            workoutExerciseRepository.delete(workoutExercise);
-
-            return toWorkoutResponse(workout);
-        }
-
+        return workoutMapper.toResponse(workout);
+    }
 
     @Transactional
     public WorkoutResponse addWorkoutExercise(
             Long workoutId,
             WorkoutExerciseRequest exerciseRequest
     ) {
-        String currentUsername = currentUserProvider.getCurrentUsername();
+        String currentUsername =
+                currentUserProvider.getCurrentUsername();
 
-        Workout workout = workoutRepository
-                .findByIdAndUserUsername(workoutId, currentUsername)
-                .orElseThrow(() -> new WorkoutNotFoundException(
-                        "Workout with id: " + workoutId + " not found"
-                ));
-
-        ExerciseDefinition exerciseDefinition =
-                exerciseDefinitionRepository
-                        .findByIdAccessible(exerciseRequest.exerciseDefinitionId(),currentUsername,ExerciseType.SYSTEM)
+        Workout workout =
+                workoutRepository
+                        .findByIdAndUserUsername(
+                                workoutId,
+                                currentUsername
+                        )
                         .orElseThrow(() ->
-                                new ExerciseDefinitionNotFoundException(
-                                        "Exercise definition with id: "
-                                                + exerciseRequest.exerciseDefinitionId()
+                                new WorkoutNotFoundException(
+                                        "Workout with id: "
+                                                + workoutId
                                                 + " not found"
                                 )
                         );
 
-        WorkoutExercise workoutExercise = new WorkoutExercise();
+        ExerciseDefinition exerciseDefinition =
+                exerciseDefinitionRepository
+                        .findByIdAccessible(
+                                exerciseRequest
+                                        .exerciseDefinitionId(),
+                                currentUsername,
+                                ExerciseType.SYSTEM
+                        )
+                        .orElseThrow(() ->
+                                new ExerciseDefinitionNotFoundException(
+                                        "Exercise definition with id: "
+                                                + exerciseRequest
+                                                .exerciseDefinitionId()
+                                                + " not found"
+                                )
+                        );
+
+        WorkoutExercise workoutExercise =
+                new WorkoutExercise();
+
         workoutExercise.setWorkout(workout);
-        workoutExercise.setExerciseDefinition(exerciseDefinition);
+        workoutExercise.setExerciseDefinition(
+                exerciseDefinition
+        );
         workoutExercise.setExerciseNumber(
                 workout.getWorkoutExercises().size() + 1
         );
-        workoutExercise.setExerciseSets(new ArrayList<>());
+        workoutExercise.setExerciseSets(
+                new ArrayList<>()
+        );
 
+        workout.getWorkoutExercises()
+                .add(workoutExercise);
 
-        workout.getWorkoutExercises().add(workoutExercise);
+        workoutExerciseRepository.save(
+                workoutExercise
+        );
 
-        workoutExerciseRepository.save(workoutExercise);
+        List<SetRequest> setRequests =
+                exerciseRequest.setRequests();
 
-        List<SetRequest> setRequests = exerciseRequest.setRequests();
+        for (int index = 0;
+             index < setRequests.size();
+             index++) {
 
-        for (int i = 0; i < setRequests.size(); i++) {
-            SetRequest setRequest = setRequests.get(i);
+            SetRequest setRequest =
+                    setRequests.get(index);
 
-            ExerciseSet exerciseSet = new ExerciseSet();
+            ExerciseSet exerciseSet =
+                    new ExerciseSet();
+
             exerciseSet.setWeight(setRequest.weight());
             exerciseSet.setReps(setRequest.reps());
             exerciseSet.setRir(setRequest.rir());
-            exerciseSet.setSetNumber(i + 1);
-            exerciseSet.setWorkoutExercise(workoutExercise);
+            exerciseSet.setSetNumber(index + 1);
+            exerciseSet.setWorkoutExercise(
+                    workoutExercise
+            );
 
-            workoutExercise.getExerciseSets().add(exerciseSet);
+            workoutExercise.getExerciseSets()
+                    .add(exerciseSet);
         }
 
         exerciseSetRepository.saveAll(
                 workoutExercise.getExerciseSets()
         );
 
-        trainingGoalService.completeGoalsFromWorkout(workout);
-        return toWorkoutResponse(workout);
+        trainingGoalService.completeGoalsFromWorkout(
+                workout
+        );
+
+        return workoutMapper.toResponse(workout);
     }
 
     @Transactional
-    public WorkoutResponse duplicateWorkout(DuplicateWorkoutRequest request , Long workoutId){
+    public WorkoutResponse duplicateWorkout(
+            DuplicateWorkoutRequest request,
+            Long workoutId
+    ) {
+        String username =
+                currentUserProvider.getCurrentUsername();
 
-        String username = currentUserProvider.getCurrentUsername();
-
-        Workout workoutToDuplicate = workoutRepository.findByIdAndUserUsername(workoutId,username)
-                .orElseThrow(() -> new WorkoutNotFoundException("Workout with id: "+ workoutId + " not found"));
+        Workout workoutToDuplicate =
+                workoutRepository
+                        .findByIdAndUserUsername(
+                                workoutId,
+                                username
+                        )
+                        .orElseThrow(() ->
+                                new WorkoutNotFoundException(
+                                        "Workout with id: "
+                                                + workoutId
+                                                + " not found"
+                                )
+                        );
 
         Workout newWorkout = new Workout();
         newWorkout.setWorkoutName(request.workoutName());
         newWorkout.setDate(request.date());
-        newWorkout.setUser(workoutToDuplicate.getUser());
+        newWorkout.setUser(
+                workoutToDuplicate.getUser()
+        );
 
-        List<WorkoutExercise> workoutExercises = workoutToDuplicate.getWorkoutExercises();
-        List<WorkoutExercise> newWorkoutExercises = new ArrayList<>();
-        for (WorkoutExercise workoutExercise : workoutExercises) {
+        List<WorkoutExercise> workoutExercises =
+                workoutToDuplicate
+                        .getWorkoutExercises();
+
+        List<WorkoutExercise> newWorkoutExercises =
+                new ArrayList<>();
+
+        for (WorkoutExercise workoutExercise
+                : workoutExercises) {
 
             ExerciseDefinition accessibleExerciseDefinition =
-                    exerciseDefinitionRepository.findByIdAccessible(workoutExercise.getExerciseDefinition().getId(),
+                    exerciseDefinitionRepository
+                            .findByIdAccessible(
+                                    workoutExercise
+                                            .getExerciseDefinition()
+                                            .getId(),
                                     username,
-                                    ExerciseType.SYSTEM)
-                            .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Workout contains an archived or inaccessible exercise definition"));
+                                    ExerciseType.SYSTEM
+                            )
+                            .orElseThrow(() ->
+                                    new ExerciseDefinitionNotFoundException(
+                                            "Workout contains an archived or inaccessible exercise definition"
+                                    )
+                            );
 
-            WorkoutExercise newWorkoutExercise = getWorkoutExercise(workoutExercise, newWorkout);
-            newWorkoutExercise.setExerciseDefinition(accessibleExerciseDefinition);
-            newWorkoutExercises.add(newWorkoutExercise);
+            WorkoutExercise newWorkoutExercise =
+                    getWorkoutExercise(
+                            workoutExercise,
+                            newWorkout
+                    );
 
+            newWorkoutExercise.setExerciseDefinition(
+                    accessibleExerciseDefinition
+            );
+
+            newWorkoutExercises.add(
+                    newWorkoutExercise
+            );
         }
 
-        newWorkout.setWorkoutExercises(newWorkoutExercises);
+        newWorkout.setWorkoutExercises(
+                newWorkoutExercises
+        );
 
         workoutRepository.save(newWorkout);
 
-        trainingGoalService.completeGoalsFromWorkout(newWorkout);
-        return toWorkoutResponse(newWorkout);
+        trainingGoalService.completeGoalsFromWorkout(
+                newWorkout
+        );
+
+        return workoutMapper.toResponse(newWorkout);
     }
 
-        private WorkoutExercise getWorkoutExerciseByExerciseNumber(Workout workout, Integer exerciseNumber) {
-
-            return workout.getWorkoutExercises()
-                    .stream()
-                    .filter(exercise ->
-                            exercise.getExerciseNumber().equals(exerciseNumber)
-                    )
-                    .findFirst()
-                    .orElseThrow(() -> new WorkoutExerciseNotFoundException(
-                            "Exercise with number: " + exerciseNumber + " not found"
-                    ));
-
-        }
-
+    private WorkoutExercise
+    getWorkoutExerciseByExerciseNumber(
+            Workout workout,
+            Integer exerciseNumber
+    ) {
+        return workout.getWorkoutExercises()
+                .stream()
+                .filter(exercise ->
+                        exercise.getExerciseNumber()
+                                .equals(exerciseNumber)
+                )
+                .findFirst()
+                .orElseThrow(() ->
+                        new WorkoutExerciseNotFoundException(
+                                "Exercise with number: "
+                                        + exerciseNumber
+                                        + " not found"
+                        )
+                );
+    }
 
     private ExerciseSet getExerciseSetBySetNumber(
             WorkoutExercise workoutExercise,
@@ -426,146 +730,127 @@ public class WorkoutService {
     ) {
         return workoutExercise.getExerciseSets()
                 .stream()
-                .filter(set -> set.getSetNumber().equals(setNumber))
+                .filter(set ->
+                        set.getSetNumber()
+                                .equals(setNumber)
+                )
                 .findFirst()
-                .orElseThrow(() -> new ExerciseSetNotFoundException(
-                        "Set with number: " + setNumber + " not found"
-                ));
+                .orElseThrow(() ->
+                        new ExerciseSetNotFoundException(
+                                "Set with number: "
+                                        + setNumber
+                                        + " not found"
+                        )
+                );
     }
 
+    private void createWorkoutExercisesFromRequest(
+            Workout workout,
+            List<WorkoutExerciseRequest> exerciseRequests,
+            String username
+    ) {
+        for (int index = 0; index < exerciseRequests.size(); index++) {
 
-
-
-    private WorkoutResponse toWorkoutResponse(Workout workout){
-
-        List<WorkoutExercise> workoutExercises = workoutExerciseRepository.findByWorkoutOrderByExerciseNumberAsc(workout);
-        List<WorkoutExerciseResponse> exerciseResponses = new ArrayList<>();
-        for(WorkoutExercise workoutExercise : workoutExercises){
-
-            List<SetResponse> exerciseSets = exerciseSetRepository.findByWorkoutExerciseOrderBySetNumberAsc(workoutExercise)
-                    .stream().map(
-                            this::toSetResponse
-                    ).toList();
-
-            exerciseResponses.add(toExerciseResponse(workoutExercise, exerciseSets));
-        }
-
-        return  toWorkoutResponse(workout,exerciseResponses);
-    }
-
-
-
-
-
-
-
-    private CreateWorkoutResponse toCreateWorkoutResponse(Workout workout,
-                                              List<WorkoutExerciseResponse> exerciseResponses,int goalsCompleted) {
-        return new CreateWorkoutResponse(
-                workout.getId(),
-                workout.getWorkoutName(),
-                workout.getDate(),
-                exerciseResponses,
-                goalsCompleted
-        );
-    }
-
-    private WorkoutResponse toWorkoutResponse(Workout workout,
-                                              List<WorkoutExerciseResponse> exerciseResponses) {
-        return new WorkoutResponse(
-                workout.getId(),
-                workout.getWorkoutName(),
-                workout.getDate(),
-                exerciseResponses
-        );
-    }
-
-    private WorkoutExerciseResponse toExerciseResponse(WorkoutExercise exercise, List<SetResponse> setResponses){
-        return new WorkoutExerciseResponse(
-                exercise.getId(),
-                exercise.getExerciseNumber(),
-                exercise.getExerciseDefinition().getName(),
-                setResponses
-        );
-    }
-
-    private SetResponse toSetResponse(ExerciseSet exerciseSet) {
-        return new SetResponse(
-                exerciseSet.getId(),
-                exerciseSet.getSetNumber(),
-                exerciseSet.getWeight(),
-                exerciseSet.getReps(),
-                exerciseSet.getRir()
-        );
-    }
-    private List<WorkoutExerciseResponse> createWorkoutExercisesFromRequest(Workout workout , List<WorkoutExerciseRequest> exerciseRequests,String username) {
-
-        List<WorkoutExerciseResponse> exerciseResponses = new ArrayList<>();
-
-        for(int i = 0 ; i < exerciseRequests.size() ; i++) {
-
-            WorkoutExerciseRequest exerciseRequest = exerciseRequests.get(i);
-
-
+            WorkoutExerciseRequest exerciseRequest =
+                    exerciseRequests.get(index);
 
             ExerciseDefinition exerciseDefinition =
-                    exerciseDefinitionRepository.findByIdAccessible(exerciseRequest.exerciseDefinitionId(),username, ExerciseType.SYSTEM)
-                            .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Exercise definition not found"));
+                    exerciseDefinitionRepository
+                            .findByIdAccessible(
+                                    exerciseRequest
+                                            .exerciseDefinitionId(),
+                                    username,
+                                    ExerciseType.SYSTEM
+                            )
+                            .orElseThrow(() ->
+                                    new ExerciseDefinitionNotFoundException(
+                                            "Exercise definition not found"
+                                    )
+                            );
 
-            WorkoutExercise workoutExercise = new WorkoutExercise();
+            WorkoutExercise workoutExercise =
+                    new WorkoutExercise();
+
             workoutExercise.setWorkout(workout);
-            workoutExercise.setExerciseNumber(i+1);
-            workoutExercise.setExerciseDefinition(exerciseDefinition);
-            WorkoutExercise savedWorkoutExercise = workoutExerciseRepository.save(workoutExercise);
+            workoutExercise.setExerciseNumber(index + 1);
+            workoutExercise.setExerciseDefinition(
+                    exerciseDefinition
+            );
 
-            workout.getWorkoutExercises().add(savedWorkoutExercise);
+            WorkoutExercise savedWorkoutExercise =
+                    workoutExerciseRepository.save(
+                            workoutExercise
+                    );
 
-            List<SetRequest>  setRequests = exerciseRequest.setRequests();
+            workout.getWorkoutExercises()
+                    .add(savedWorkoutExercise);
 
-            List<SetResponse> setResponses = createExerciseSetsFromRequest(savedWorkoutExercise, setRequests);
-
-            exerciseResponses.add(toExerciseResponse(savedWorkoutExercise,setResponses));
-
+            createExerciseSetsFromRequest(
+                    savedWorkoutExercise,
+                    exerciseRequest.setRequests()
+            );
         }
-
-        return exerciseResponses;
     }
 
-    private List<SetResponse> createExerciseSetsFromRequest(WorkoutExercise workoutExercise , List<SetRequest> setRequests){
-        List<SetResponse> setResponses = new ArrayList<>();
-        for(int i = 0 ; i < setRequests.size() ; i++) {
-            SetRequest setRequest = setRequests.get(i);
+    private void createExerciseSetsFromRequest(
+            WorkoutExercise workoutExercise,
+            List<SetRequest> setRequests
+    ) {
+        for (int index = 0; index < setRequests.size(); index++) {
 
-            ExerciseSet exerciseSet = new ExerciseSet();
-            exerciseSet.setWorkoutExercise(workoutExercise);
-            exerciseSet.setSetNumber(i+1);
+            SetRequest setRequest =
+                    setRequests.get(index);
+
+            ExerciseSet exerciseSet =
+                    new ExerciseSet();
+
+            exerciseSet.setWorkoutExercise(
+                    workoutExercise
+            );
+            exerciseSet.setSetNumber(index + 1);
             exerciseSet.setReps(setRequest.reps());
             exerciseSet.setRir(setRequest.rir());
             exerciseSet.setWeight(setRequest.weight());
-            ExerciseSet savedSet = exerciseSetRepository.save(exerciseSet);
 
-            workoutExercise.getExerciseSets().add(savedSet);
+            ExerciseSet savedSet =
+                    exerciseSetRepository.save(
+                            exerciseSet
+                    );
 
-            setResponses.add(toSetResponse(savedSet));
-
+            workoutExercise.getExerciseSets()
+                    .add(savedSet);
         }
-
-        return setResponses;
     }
 
+    private static @NonNull WorkoutExercise
+    getWorkoutExercise(
+            WorkoutExercise workoutExercise,
+            Workout newWorkout
+    ) {
+        WorkoutExercise newWorkoutExercise =
+                new WorkoutExercise();
 
-    private static @NonNull WorkoutExercise getWorkoutExercise(WorkoutExercise workoutExercise, Workout newWorkout) {
-        WorkoutExercise newWorkoutExercise = new WorkoutExercise();
-        newWorkoutExercise.setExerciseNumber(workoutExercise.getExerciseNumber());
+        newWorkoutExercise.setExerciseNumber(
+                workoutExercise.getExerciseNumber()
+        );
+
         newWorkoutExercise.setWorkout(newWorkout);
-        newWorkoutExercise.setExerciseDefinition(workoutExercise.getExerciseDefinition());
 
+        newWorkoutExercise.setExerciseDefinition(
+                workoutExercise.getExerciseDefinition()
+        );
 
-        List<ExerciseSet> exerciseSets = workoutExercise.getExerciseSets();
-        List<ExerciseSet> newExerciseSets = new ArrayList<>();
+        List<ExerciseSet> exerciseSets =
+                workoutExercise.getExerciseSets();
+
+        List<ExerciseSet> newExerciseSets =
+                new ArrayList<>();
+
         for (ExerciseSet exerciseSet : exerciseSets) {
 
-            ExerciseSet newExerciseSet = new ExerciseSet();
+            ExerciseSet newExerciseSet =
+                    new ExerciseSet();
+
             newExerciseSet.setWeight(exerciseSet.getWeight());
             newExerciseSet.setReps(exerciseSet.getReps());
             newExerciseSet.setRir(exerciseSet.getRir());
@@ -574,11 +859,11 @@ public class WorkoutService {
 
             newExerciseSets.add(newExerciseSet);
         }
-        newWorkoutExercise.setExerciseSets(newExerciseSets);
+
+        newWorkoutExercise.setExerciseSets(
+                newExerciseSets
+        );
+
         return newWorkoutExercise;
     }
-
-
-
-
 }

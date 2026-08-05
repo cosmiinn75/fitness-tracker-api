@@ -1,19 +1,20 @@
 package com.cosmin.fitness_tracker_api.service;
+
 import com.cosmin.fitness_tracker_api.DTO.ExerciseDefinitionRequest;
 import com.cosmin.fitness_tracker_api.DTO.ExerciseDefinitionResponse;
 import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.exception.ExerciseDefinitionNotFoundException;
 import com.cosmin.fitness_tracker_api.exception.NameAlreadyExistsException;
-import com.cosmin.fitness_tracker_api.exception.UserNotAuthException;
 import com.cosmin.fitness_tracker_api.exception.UserNotFoundException;
+import com.cosmin.fitness_tracker_api.mapper.ExerciseDefinitionMapper;
 import com.cosmin.fitness_tracker_api.model.ExerciseDefinition;
 import com.cosmin.fitness_tracker_api.model.User;
 import com.cosmin.fitness_tracker_api.repository.ExerciseDefinitionRepository;
 import com.cosmin.fitness_tracker_api.repository.UserRepository;
 import com.cosmin.fitness_tracker_api.security.CurrentUserProvider;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 import java.util.Locale;
 
@@ -26,10 +27,13 @@ public class ExerciseDefinitionService {
 
     private final CurrentUserProvider currentUserProvider;
 
-    public ExerciseDefinitionService(ExerciseDefinitionRepository exerciseDefinitionRepository, UserRepository userRepository, CurrentUserProvider currentUserProvider) {
+    private final ExerciseDefinitionMapper exerciseDefinitionMapper;
+
+    public ExerciseDefinitionService(ExerciseDefinitionRepository exerciseDefinitionRepository, UserRepository userRepository, CurrentUserProvider currentUserProvider, ExerciseDefinitionMapper exerciseDefinitionMapper) {
         this.exerciseDefinitionRepository = exerciseDefinitionRepository;
         this.userRepository = userRepository;
         this.currentUserProvider = currentUserProvider;
+        this.exerciseDefinitionMapper = exerciseDefinitionMapper;
     }
 
     @Transactional
@@ -59,7 +63,7 @@ public class ExerciseDefinitionService {
 
         ExerciseDefinition savedExerciseDefinition = exerciseDefinitionRepository.save(exerciseDefinition);
 
-        return toExerciseDefinitionResponse(savedExerciseDefinition);
+        return exerciseDefinitionMapper.toResponse(savedExerciseDefinition);
     }
 
     @Transactional(readOnly = true)
@@ -67,7 +71,7 @@ public class ExerciseDefinitionService {
         String username = currentUserProvider.getCurrentUsername();
         return exerciseDefinitionRepository.findAllAccessible(username,ExerciseType.SYSTEM)
                 .stream()
-                .map(this::toExerciseDefinitionResponse)
+                .map(exerciseDefinitionMapper::toResponse)
                 .toList();
     }
 
@@ -77,7 +81,7 @@ public class ExerciseDefinitionService {
         ExerciseDefinition exerciseDefinition = exerciseDefinitionRepository.findByIdAccessible(id,username,ExerciseType.SYSTEM)
                 .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Exercise definition not found"));
 
-        return toExerciseDefinitionResponse(exerciseDefinition);
+        return exerciseDefinitionMapper.toResponse(exerciseDefinition);
     }
 
     @Transactional
@@ -128,7 +132,7 @@ public class ExerciseDefinitionService {
         exerciseDefinition.setNormalizedName(normalizedName);
         exerciseDefinition.setMuscleGroup(request.muscleGroup());
 
-        return toExerciseDefinitionResponse(exerciseDefinition);
+        return exerciseDefinitionMapper.toResponse(exerciseDefinition);
     }
 
 
@@ -150,17 +154,6 @@ public class ExerciseDefinitionService {
 
         exerciseDefinition.setArchived(true);
     }
-
-    private ExerciseDefinitionResponse toExerciseDefinitionResponse(ExerciseDefinition exerciseDefinition) {
-        return new ExerciseDefinitionResponse(
-                exerciseDefinition.getId(),
-                exerciseDefinition.getName(),
-                exerciseDefinition.getMuscleGroup(),
-                exerciseDefinition.getExerciseType(),
-                exerciseDefinition.isArchived()
-        );
-    }
-
 
 
     private String normalizeName(String name) {
