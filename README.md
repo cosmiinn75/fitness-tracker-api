@@ -2,13 +2,16 @@
 
 [![Fitness Tracker CI](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml/badge.svg)](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml)
 
-A secure REST API for recording strength-training workouts and tracking progress, built with **Java 26**, **Spring Boot 4.1**, and **MySQL 8**.
+A secure REST API for recording strength-training workouts and tracking long-term progress, built with **Java 26**, **Spring Boot 4.1**, and **MySQL 8**.
 
-This portfolio project goes beyond basic CRUD operations. It includes JWT authentication with refresh-token rotation, global system exercises and user-owned custom exercises, nested workout management, reusable workout templates, filtering and pagination, workout duplication, exercise history, estimated one-repetition maximum calculations, paginated personal records powered by a native SQL window function, and a complete training-goal lifecycle with automatic completion and expiration. The project also includes Flyway database migrations, automated tests, Docker, health monitoring, and continuous integration.
+The project is implemented as a modular monolith with a layered architecture and goes beyond basic CRUD operations. It includes JWT authentication with refresh-token rotation, global system exercises and user-owned custom exercises, nested workout management, reusable workout templates, progress analytics, paginated personal records powered by a native SQL window function, and a complete training-goal lifecycle with automatic completion and expiration.
+
+The backend foundation also includes centralized authenticated-user access, dedicated DTO mapper components, standardized API errors using Spring's `ProblemDetail`, Flyway database migrations, automated tests, Docker, health monitoring, and continuous integration.
 
 ## Table of Contents
 
 - [Highlights](#highlights)
+- [Recent Backend Foundation Refactor](#recent-backend-foundation-refactor)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
@@ -31,6 +34,7 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 - [Security](#security)
 - [Roadmap](#roadmap)
 - [What I Learned](#what-i-learned)
+- [Status](#status)
 - [Author](#author)
 
 ## Highlights
@@ -42,15 +46,120 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 - Reusable workout templates with ordered exercises and target sets
 - Read-only workout-draft generation from saved templates
 - Ownership protection for every user-specific operation
+- Centralized authenticated-user access through `CurrentUserProvider`
+- Dedicated mapper components for entity-to-DTO transformations
+- Standardized API errors using Spring `ProblemDetail`
 - Pagination, filtering, date ranges, and deterministic ordering
 - Paginated personal records selected with `ROW_NUMBER()` and `PARTITION BY`
 - User-owned training goals with automatic completion, cancellation, and expiration
 - Flyway-managed schema with Hibernate validation
-- Automated unit, controller, and database-backed integration tests
+- Automated unit, controller, repository, and integration tests
 - Dockerized API and MySQL environment
 - Swagger/OpenAPI documentation with JWT authorization
 - Actuator health monitoring
 - GitHub Actions CI with a real MySQL service container
+
+## Recent Backend Foundation Refactor
+
+The project recently received an architectural refactor focused on maintainability, separation of responsibilities, consistency, and testability.
+
+### Centralized Authenticated-User Access
+
+Services no longer access `SecurityContextHolder` directly.
+
+Authentication access is now abstracted behind:
+
+```java
+public interface CurrentUserProvider {
+    String getCurrentUsername();
+}
+```
+
+The production implementation reads the authenticated principal from Spring Security, while unit tests mock the interface directly.
+
+This provides:
+
+- Less duplicated security-context code
+- Easier unit testing
+- Clearer service dependencies
+- Reduced coupling between business logic and Spring Security internals
+- One consistent way of resolving the current username
+
+### Dedicated Mapper Components
+
+DTO construction has been extracted from services into dedicated mapper classes:
+
+- `ExerciseDefinitionMapper`
+- `WorkoutMapper`
+- `ProgressMapper`
+- `TrainingGoalMapper`
+- `WorkoutTemplateMapper`
+
+The mappers are responsible for transforming entities and query results into API response DTOs.
+
+Services remain responsible for:
+
+- Business rules
+- Ownership validation
+- Repository access
+- Transaction boundaries
+- Creating and modifying entities
+- Deciding when data should be persisted
+
+Mappers do not perform repository queries or persistence operations.
+
+This separation keeps service classes smaller and makes response mapping independently testable.
+
+### Standardized Problem Responses
+
+Business and validation errors are handled through a global exception handler using Spring's `ProblemDetail`.
+
+Error responses now have a consistent structure containing information such as:
+
+- HTTP status
+- Human-readable title
+- Detailed explanation
+- Stable machine-readable error code
+- Problem type
+- Request path
+- Field-level validation errors when applicable
+
+Example:
+
+```json
+{
+  "type": "urn:problem:workout-not-found",
+  "title": "Workout not found",
+  "status": 404,
+  "detail": "Workout not found",
+  "instance": "/api/workouts/10",
+  "code": "WORKOUT_NOT_FOUND"
+}
+```
+
+### Updated Service Tests
+
+Service tests were updated for the mapper-based architecture.
+
+Repositories, external services, and `CurrentUserProvider` remain Mockito mocks, while simple mapper implementations are injected as Mockito spies:
+
+```java
+@Spy
+private WorkoutMapper workoutMapper = new WorkoutMapper();
+
+@InjectMocks
+private WorkoutService workoutService;
+```
+
+This allows tests to:
+
+- Preserve constructor injection through `@InjectMocks`
+- Use real mapping behavior
+- Avoid duplicating mapper expectations in every service test
+- Verify complete response DTOs
+- Keep unit tests independent from the Spring application context
+
+Integration tests also reload persisted entity relationships when necessary, ensuring that API responses are produced from the same database state that would be used in a real request.
 
 ## Features
 
@@ -65,21 +174,33 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 - Use stateless Spring Security configuration
 - Validate access tokens through a custom JWT filter
 - Load database credentials and JWT secrets from environment variables
-- Restrict workouts and progress data to the authenticated owner
+- Restrict workouts, templates, goals, and progress data to their authenticated owner
+- Resolve the authenticated username through an injectable `CurrentUserProvider`
+- Return consistent authentication and authorization errors through `ProblemDetail`
 
 ### Exercise Definitions
 
 - Provide global `SYSTEM` exercise definitions available to every authenticated user
 - Allow each user to create private `CUSTOM` exercise definitions
-- Retrieve all accessible, non-archived exercises: global system exercises and the authenticated user's custom exercises
-- Retrieve one exercise definition only when it is globally available or owned by the authenticated user
+- Retrieve all accessible, non-archived exercises
+- Combine global system exercises with the authenticated user's custom exercises
+- Retrieve one exercise only when it is globally available or owned by the authenticated user
 - Update only custom exercises owned by the authenticated user
 - Archive custom exercises without deleting historical workout data
 - Prevent users from modifying or archiving global system exercises
-- Prevent duplicate custom names for the same user and names that conflict with a system exercise
-- Normalize exercise names by trimming whitespace, collapsing repeated spaces, and comparing names case-insensitively
-- Return the exercise type and archive status in the API response
-- Supported muscle groups: `CHEST`, `BACK`, `ARMS`, `SHOULDERS`, `LEGS`, and `CORE`
+- Prevent duplicate custom names for the same user
+- Prevent custom names that conflict with a system exercise
+- Normalize names by trimming whitespace and collapsing repeated spaces
+- Compare normalized names case-insensitively
+- Return exercise type and archive status in API responses
+- Map exercise entities through a dedicated mapper
+- Supported muscle groups:
+  - `CHEST`
+  - `BACK`
+  - `ARMS`
+  - `SHOULDERS`
+  - `LEGS`
+  - `CORE`
 
 ### Workout Management
 
@@ -89,10 +210,14 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 - Filter workouts by partial name and date range
 - Sort workout history by date in descending order
 - Update workout metadata with `PATCH`
+- Require at least one supplied field when partially updating metadata
 - Replace an entire workout with `PUT`
 - Delete workouts
-- Duplicate a workout with all its exercises and sets while selecting a new name and date
+- Duplicate a workout with all exercises and sets
+- Select a new name and date when duplicating a workout
+- Preserve the original workout during duplication
 - Protect every operation with authenticated-user ownership checks
+- Map nested workouts through a dedicated `WorkoutMapper`
 
 ### Exercises and Sets Inside a Workout
 
@@ -102,50 +227,80 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 - Add a set to an exercise
 - Partially update a set
 - Delete a set
-- Preserve ordering with `exerciseNumber` and `setNumber`
+- Preserve ordering through `exerciseNumber` and `setNumber`
 - Automatically renumber exercises and sets after deletion
+- Maintain both sides of bidirectional JPA relationships
+- Return ordered nested response DTOs through the workout mapper
 
 ### Progress Analytics
 
-- Calculate the volume of a workout
+- Calculate the total volume of one workout
 - Calculate volume for the last seven days
 - Calculate volume from the beginning of the current month
 - Retrieve the personal record for one exercise
 - Retrieve all personal records with database-level pagination
-- Select one best set per exercise with a native MySQL window-function query
+- Select one best set per exercise through a native MySQL window-function query
 - Retrieve paginated exercise history with optional date filters
 - Calculate an estimated one-repetition maximum for each history entry
 - Retrieve an activity summary for the authenticated user
+- Separate calculations and business rules from DTO mapping
+- Map progress results through a dedicated `ProgressMapper`
 
 ### Training Goals
 
-- Create a goal for a specific exercise, target weight, repetition count, and target date
+- Create a goal for a specific exercise
+- Store target weight, repetitions, and target date
 - Allow only one `ACTIVE` goal per user and exercise
-- Retrieve the authenticated user's goals with pagination and deterministic ordering
+- Retrieve the authenticated user's goals with pagination
+- Use deterministic result ordering
 - Cancel an active goal manually
-- Complete goals automatically when one workout set reaches both the target weight and target repetitions
-- Prevent a set that reaches only one target from completing the goal
-- Ignore workouts belonging to other users and workouts recorded before the goal was created
+- Complete goals automatically when one workout set reaches both target values
+- Prevent different sets from combining their values to complete one goal
+- Ignore workouts belonging to other users
+- Ignore workouts recorded before the goal was created
 - Complete multiple goals for different exercises through the same workout
 - Return the number of goals completed by a newly created workout
-- Expire overdue active goals automatically through a scheduled database update
+- Expire overdue active goals through a scheduled database update
 - Keep `GET` requests read-only
-- Support the lifecycle statuses `ACTIVE`, `COMPLETED`, `CANCELLED`, and `EXPIRED`
+- Map training-goal responses through a dedicated mapper
+- Support the following lifecycle statuses:
+  - `ACTIVE`
+  - `COMPLETED`
+  - `CANCELLED`
+  - `EXPIRED`
 
 ### Workout Templates
 
 - Create reusable workout templates containing ordered exercises and target sets
-- Store target weight, repetitions, and optional RIR for every template set
-- Generate `exerciseNumber` and `setNumber` values from request order
-- Prevent the same exercise definition from appearing more than once in one template
+- Store target weight, repetitions, and optional RIR
+- Generate `exerciseNumber` and `setNumber` from request order
+- Prevent the same exercise from appearing more than once in one template
 - Prevent duplicate template names for the same user through normalized-name checks
-- Allow templates to reference global system exercises and custom exercises owned by the authenticated user
-- Retrieve one owned template with its exercises and sets in deterministic order
+- Reference global system exercises
+- Reference custom exercises owned by the authenticated user
+- Retrieve one owned template with exercises and sets in deterministic order
 - Retrieve the authenticated user's templates with pagination
-- Delete an owned template together with its nested exercises and sets without deleting referenced exercise definitions
-- Convert a template into a pre-filled `WorkoutRequest` using the current date
-- Return the generated workout as an editable draft without saving a workout to the database
-- Protect every template operation with authenticated-user ownership checks
+- Delete an owned template together with its nested data
+- Preserve referenced exercise definitions when a template is deleted
+- Convert a template into a pre-filled `WorkoutRequest`
+- Use the current date for generated workout drafts
+- Return the generated workout as an editable draft
+- Avoid persisting a workout while generating a draft
+- Protect every operation with authenticated-user ownership checks
+- Map template aggregates through a dedicated `WorkoutTemplateMapper`
+
+### Validation and Error Handling
+
+- Validate request bodies with Jakarta Bean Validation
+- Validate positive IDs and pagination values
+- Validate date ranges
+- Validate nested workout and template structures
+- Reject empty exercise and set collections
+- Require at least one field in partial-update requests
+- Translate validation errors into field-level problem details
+- Translate domain exceptions into stable error codes
+- Return consistent response bodies across controllers
+- Keep exception-to-HTTP-status translation in one global handler
 
 ### Database and Operations
 
@@ -155,12 +310,13 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 - Document the API through Springdoc OpenAPI and Swagger UI
 - Authorize Swagger requests with JWT bearer tokens
 - Expose a public Actuator health endpoint
-- Build the API with a multi-stage Docker image
+- Build the API through a multi-stage Docker image
 - Start the API and MySQL together through Docker Compose
-- Build and test every push and pull request through GitHub Actions
+- Build and test pushes and pull requests through GitHub Actions
 - Run scheduled training-goal expiration at midnight
 - Update overdue goals with one transactional JPQL bulk query
-- Persist workout templates through a dedicated Flyway migration with cascade deletion for nested template data
+- Persist workout templates through a dedicated Flyway migration
+- Use cascade deletion for nested workout-template data
 
 ## Tech Stack
 
@@ -174,6 +330,7 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 | Database | MySQL 8 |
 | Schema migrations | Flyway |
 | Validation | Jakarta Bean Validation |
+| Error responses | Spring `ProblemDetail` |
 | API documentation | Springdoc OpenAPI, Swagger UI |
 | Monitoring | Spring Boot Actuator |
 | Scheduling | Spring `@Scheduled` |
@@ -184,17 +341,108 @@ This portfolio project goes beyond basic CRUD operations. It includes JWT authen
 
 ## Architecture
 
-The application follows a layered architecture:
+The application is designed as a modular monolith with a layered architecture.
 
-1. **Controllers** expose REST endpoints and validate incoming parameters and request bodies.
-2. **Services** implement authentication, ownership, workout, exercise, progress, training-goal, and workout-template business rules.
-3. **Repositories** access MySQL through Spring Data JPA, JPQL, and native SQL where appropriate.
-4. **DTOs** keep the public API contract separate from persistence entities.
-5. **Projections** map optimized native-query results without loading full JPA entity graphs.
-6. **Security components** validate JWTs and populate the Spring Security context.
-7. **Global exception handling** converts validation and business exceptions into HTTP responses.
-8. **Flyway migrations** version and reproduce the database schema.
-9. **Scheduled components** expire overdue active training goals without adding write operations to `GET` requests.
+### Controllers
+
+Controllers:
+
+- Expose REST endpoints
+- Validate request bodies and parameters
+- Delegate business operations to services
+- Return response DTOs and appropriate HTTP statuses
+
+### Services
+
+Services:
+
+- Implement business rules
+- Validate resource ownership
+- Coordinate repositories
+- Create and update entities
+- Manage transactional operations
+- Decide when data should be persisted
+- Use `CurrentUserProvider` instead of accessing the security context directly
+
+### Mappers
+
+Dedicated mappers:
+
+- Transform entities into response DTOs
+- Transform nested aggregates into ordered API responses
+- Map repository projections into response models
+- Convert workout templates into workout drafts
+- Keep DTO-construction logic outside service classes
+
+Mappers do not:
+
+- Query repositories
+- Save entities
+- Access the authenticated user
+- Make ownership decisions
+- Replace service-layer business rules
+
+### Repositories
+
+Repositories:
+
+- Access MySQL through Spring Data JPA
+- Use derived queries for standard operations
+- Use JPQL for aggregate updates
+- Use native SQL for optimized ranking queries
+- Return projections where loading complete entity graphs is unnecessary
+
+### DTOs
+
+DTOs:
+
+- Separate the public API contract from persistence entities
+- Define request validation rules
+- Prevent JPA entities from being exposed directly
+- Represent nested request and response structures
+
+### Projections
+
+Interface projections:
+
+- Map optimized native-query results
+- Avoid loading full entity graphs
+- Support paginated personal-record results
+
+### Security Components
+
+Security components:
+
+- Validate JWT access tokens
+- Populate the Spring Security context
+- Resolve the current principal through `CurrentUserProvider`
+- Keep authentication details separate from business logic
+
+### Exception Handling
+
+The global exception handler:
+
+- Converts business exceptions into `ProblemDetail`
+- Assigns HTTP statuses
+- Provides stable problem types and error codes
+- Returns field-level validation errors
+- Ensures a consistent API error contract
+
+### Flyway Migrations
+
+Flyway migrations:
+
+- Version the database schema
+- Reproduce the same schema in local, Docker, test, and CI environments
+- Run before Hibernate validation
+
+### Scheduled Components
+
+Scheduled components:
+
+- Expire overdue active training goals
+- Perform the update through one transactional database query
+- Avoid performing state changes during read endpoints
 
 ## Domain Model
 
@@ -202,29 +450,37 @@ The application follows a layered architecture:
 erDiagram
     USER ||--o{ WORKOUT : owns
     USER ||--o{ REFRESH_TOKEN : receives
+    USER ||--o{ RESET_TOKEN : receives
     USER ||--o{ TRAINING_GOAL : sets
     USER ||--o{ WORKOUT_TEMPLATE : owns
+    USER ||--o{ EXERCISE_DEFINITION : creates
+
     WORKOUT ||--|{ WORKOUT_EXERCISE : contains
+    WORKOUT_EXERCISE ||--|{ EXERCISE_SET : contains
+
     EXERCISE_DEFINITION ||--o{ WORKOUT_EXERCISE : identifies
     EXERCISE_DEFINITION ||--o{ TRAINING_GOAL : targets
     EXERCISE_DEFINITION ||--o{ WORKOUT_TEMPLATE_EXERCISE : identifies
-    WORKOUT_EXERCISE ||--|{ EXERCISE_SET : contains
+
     WORKOUT_TEMPLATE ||--|{ WORKOUT_TEMPLATE_EXERCISE : contains
     WORKOUT_TEMPLATE_EXERCISE ||--|{ WORKOUT_TEMPLATE_SET : contains
 ```
 
-- A user owns multiple workouts, refresh tokens, training goals, custom exercise definitions, and workout templates.
-- A system exercise is globally accessible and has no owner; a custom exercise belongs to exactly one user.
+- A user owns multiple workouts, refresh tokens, reset tokens, training goals, custom exercises, and workout templates.
+- A system exercise is globally accessible and has no user owner.
+- A custom exercise belongs to exactly one user.
 - A workout contains ordered workout exercises.
 - A workout exercise references one reusable exercise definition.
 - A workout exercise contains ordered sets.
-- A set records weight, repetitions, and optional repetitions in reserve (`RIR`).
-- A training goal links one user to one exercise definition and stores target weight, repetitions, date, creation date, and lifecycle status.
-- A workout template contains ordered template exercises and target sets that can be converted into an editable workout draft.
+- A set records weight, repetitions, and optional repetitions in reserve.
+- A training goal links one user to one exercise definition.
+- A training goal stores target values, dates, and lifecycle status.
+- A workout template stores an ordered reusable training structure.
+- A template can be converted into an editable workout draft without creating workout history.
 
 ## Database Migrations
 
-The schema is managed by Flyway rather than being generated automatically by Hibernate.
+The schema is managed by Flyway instead of being generated automatically by Hibernate.
 
 Migration files are stored in:
 
@@ -232,35 +488,65 @@ Migration files are stored in:
 src/main/resources/db/migration
 ```
 
-The migration history includes the initial schema, database indexes, the `training_goals` table, password-reset tokens, exercise ownership and type information, and the workout-template tables. Every migration uses Flyway's `V<version>__<description>.sql` naming convention.
+Flyway migrations use the following naming convention:
 
-The migrations create and evolve the following tables:
+```text
+V<version>__<description>.sql
+```
+
+The migration history includes:
+
+- Initial user and authentication schema
+- Workout, exercise, and set tables
+- Database indexes
+- Training-goal tables and lifecycle status
+- Password-reset tokens
+- Exercise ownership and exercise types
+- Workout-template tables and nested relationships
+
+Main tables include:
 
 - `users`
 - `refresh_tokens`
+- `reset_tokens`
 - `exercise_definitions`
 - `workouts`
 - `workout_exercises`
 - `exercise_sets`
 - `training_goals`
-- `reset_tokens`
 - `workout_templates`
 - `workout_template_exercises`
 - `workout_template_sets`
 
-The `training_goals` table includes foreign keys to `users` and `exercise_definitions`, a persisted lifecycle status, and indexes supporting user-, exercise-, and status-based lookups.
+The `training_goals` table includes:
 
-The exercise-definition schema distinguishes global `SYSTEM` exercises from user-owned `CUSTOM` exercises and enforces the correct owner relationship. The workout-template tables preserve exercise and set ordering, cascade nested template deletion, and restrict deletion of referenced exercise definitions.
+- A foreign key to `users`
+- A foreign key to `exercise_definitions`
+- Target weight
+- Target repetitions
+- Creation date
+- Target date
+- Lifecycle status
+- Supporting indexes for user-, exercise-, and status-based queries
+
+The exercise-definition schema distinguishes global `SYSTEM` exercises from user-owned `CUSTOM` exercises.
+
+The workout-template schema:
+
+- Preserves exercise ordering
+- Preserves set ordering
+- Cascades nested template deletion
+- Prevents referenced exercise definitions from being deleted accidentally
 
 Application startup follows this sequence:
 
 1. The application connects to MySQL.
-2. Flyway checks `flyway_schema_history`.
-3. Flyway applies every migration that has not yet run.
-4. Hibernate validates the resulting schema against the JPA entities.
-5. The application starts only when the schema is valid.
+2. Flyway reads `flyway_schema_history`.
+3. Flyway applies migrations that have not yet run.
+4. Hibernate validates the resulting schema.
+5. The application starts only when entity mappings match the schema.
 
-Applied migrations must not be edited. Every future schema change should be introduced through a new versioned migration.
+Applied migrations must not be edited. Every future schema modification should be introduced through a new versioned migration.
 
 ## API Endpoints
 
@@ -285,11 +571,11 @@ Authorization: Bearer <access-token>
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `GET` | `/api/exercises` | Retrieve global system exercises and the authenticated user's custom exercises |
-| `GET` | `/api/exercises/{id}` | Retrieve an accessible exercise definition by ID |
-| `POST` | `/api/exercises` | Create a user-owned custom exercise definition |
-| `PUT` | `/api/exercises/{id}` | Replace an owned custom exercise definition |
-| `PATCH` | `/api/exercises/{id}` | Archive an owned custom exercise definition |
+| `GET` | `/api/exercises` | Retrieve accessible system and custom exercises |
+| `GET` | `/api/exercises/{id}` | Retrieve one accessible exercise |
+| `POST` | `/api/exercises` | Create a user-owned custom exercise |
+| `PUT` | `/api/exercises/{id}` | Replace an owned custom exercise |
+| `PATCH` | `/api/exercises/{id}` | Archive an owned custom exercise |
 
 ### Workouts
 
@@ -298,7 +584,7 @@ Authorization: Bearer <access-token>
 | `GET` | `/api/workouts` | Retrieve paginated and filtered workouts |
 | `GET` | `/api/workouts/{id}` | Retrieve one workout |
 | `POST` | `/api/workouts` | Create a workout with exercises and sets |
-| `PATCH` | `/api/workouts/{id}` | Update the workout name and date |
+| `PATCH` | `/api/workouts/{id}` | Update workout name and/or date |
 | `PUT` | `/api/workouts/{id}` | Replace the complete workout |
 | `DELETE` | `/api/workouts/{id}` | Delete a workout |
 | `POST` | `/api/workouts/{workoutId}/duplicate` | Duplicate a workout with a new name and date |
@@ -334,22 +620,22 @@ GET /api/workouts?page=0&size=10&name=push&startDate=2026-07-01&endDate=2026-07-
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `GET` | `/api/progress/workouts/{workoutId}/volume` | Calculate the volume of one workout |
+| `GET` | `/api/progress/workouts/{workoutId}/volume` | Calculate one workout's volume |
 | `GET` | `/api/progress/weekly-volume` | Calculate volume for the last seven days |
 | `GET` | `/api/progress/monthly-volume` | Calculate volume from the start of the current month |
 | `GET` | `/api/progress/exercises/{exerciseDefinitionId}/personal-record` | Retrieve the best set for one exercise |
-| `GET` | `/api/progress/personal-records` | Retrieve paginated personal records for all exercises |
+| `GET` | `/api/progress/personal-records` | Retrieve paginated personal records |
 | `GET` | `/api/progress/exercises/{exerciseDefinitionId}/history` | Retrieve paginated exercise history |
-| `GET` | `/api/progress/summary` | Retrieve the authenticated user's activity summary |
+| `GET` | `/api/progress/summary` | Retrieve an activity summary |
 
-Personal-record pagination parameters:
+Personal-record pagination:
 
 | Parameter | Default | Rules |
 | --- | --- | --- |
 | `page` | `0` | Minimum `0` |
 | `size` | `20` | From `1` to `100` |
 
-Exercise history accepts the same pagination parameters plus optional `startDate` and `endDate` filters:
+Exercise history accepts the same pagination parameters plus optional date filters:
 
 ```http
 GET /api/progress/exercises/1/history?page=0&size=20&startDate=2026-06-01&endDate=2026-07-31
@@ -360,30 +646,33 @@ GET /api/progress/exercises/1/history?page=0&size=20&startDate=2026-06-01&endDat
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | `POST` | `/api/training-goals` | Create a training goal |
-| `GET` | `/api/training-goals` | Retrieve the authenticated user's goals with pagination |
+| `GET` | `/api/training-goals` | Retrieve the authenticated user's goals |
 | `PATCH` | `/api/training-goals/{id}/cancel` | Cancel an active training goal |
 
-Example paginated request:
+Example:
 
 ```http
 GET /api/training-goals?page=0&size=10
 ```
 
-Training goals are always restricted to the authenticated user. An ID belonging to a different user is treated as a missing resource.
+Training goals are always restricted to the authenticated owner. An ID belonging to a different user is treated as a missing resource.
 
 ### Workout Templates
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `POST` | `/api/workout-templates` | Create a reusable template with ordered exercises and target sets |
-| `GET` | `/api/workout-templates` | Retrieve the authenticated user's templates with pagination |
+| `POST` | `/api/workout-templates` | Create a reusable workout template |
+| `GET` | `/api/workout-templates` | Retrieve owned templates with pagination |
 | `GET` | `/api/workout-templates/{templateId}` | Retrieve one owned template |
-| `GET` | `/api/workout-templates/{templateId}/workout-draft` | Convert a template into an unsaved, editable workout draft |
-| `DELETE` | `/api/workout-templates/{templateId}` | Delete an owned template and its nested template data |
+| `GET` | `/api/workout-templates/{templateId}/workout-draft` | Generate an unsaved editable workout draft |
+| `DELETE` | `/api/workout-templates/{templateId}` | Delete an owned template and its nested data |
 
-`GET /api/workout-templates` accepts `page` and `size`. The defaults are `0` and `20`, and the maximum page size is `100`.
+Pagination defaults:
 
-Workout templates are restricted to the authenticated user. Trying to access another user's template returns the same response as requesting a missing template.
+| Parameter | Default | Rules |
+| --- | --- | --- |
+| `page` | `0` | Minimum `0` |
+| `size` | `20` | From `1` to `100` |
 
 ### Operations
 
@@ -394,13 +683,15 @@ Workout templates are restricted to the authenticated user. Trying to access ano
 ## Authentication Flow
 
 1. A user registers or logs in.
-2. The API returns an access token and a refresh token.
+2. The API returns an access token and refresh token.
 3. The client sends the access token in the `Authorization` header.
-4. Access tokens expire after **15 minutes**.
-5. Refresh tokens are stored in MySQL and expire after **7 days**.
-6. `/api/auth/refresh` validates and revokes the current refresh token.
-7. The API returns a new access token and refresh token.
-8. `/api/auth/logout` revokes the supplied refresh token.
+4. Access tokens expire after 15 minutes.
+5. Refresh tokens are persisted in MySQL.
+6. Refresh tokens expire after 7 days.
+7. `/api/auth/refresh` validates the current refresh token.
+8. The current refresh token is revoked.
+9. A new access and refresh-token pair is returned.
+10. `/api/auth/logout` revokes the supplied refresh token.
 
 A successfully rotated refresh token cannot be reused.
 
@@ -421,10 +712,10 @@ The best recorded set is selected in this order:
 1. Highest weight
 2. Highest repetitions when weight is equal
 3. Highest RIR when weight and repetitions are equal
-4. Most recent workout date when the previous values are equal
-5. Deterministic workout and set ordering for any remaining tie
+4. Most recent workout date
+5. Deterministic workout and set ordering for remaining ties
 
-The paginated endpoint performs this selection directly in MySQL. It uses:
+The paginated endpoint performs this selection directly in MySQL:
 
 ```sql
 ROW_NUMBER() OVER (
@@ -433,64 +724,107 @@ ROW_NUMBER() OVER (
 )
 ```
 
-Only one result per exercise is returned. The query filters by the authenticated username, uses an interface projection, and supplies a dedicated `countQuery` so Spring Data can build correct page metadata.
+Only one result per exercise is returned.
+
+The query:
+
+- Filters by the authenticated username
+- Uses an interface projection
+- Uses a dedicated `countQuery`
+- Supports database-level pagination
+- Avoids loading unnecessary entity graphs
 
 ### Estimated One-Repetition Maximum
 
-Exercise history includes the highest estimated 1RM from each workout entry. It uses the Epley formula:
+Exercise history includes the highest estimated 1RM from each workout entry.
+
+The Epley formula is used:
 
 ```text
 estimated 1RM = weight × (1 + repetitions / 30)
 ```
 
-The value is intended for progress comparison and is not a guaranteed maximal lift.
+The value is intended for tracking progress and is not guaranteed to represent a user's exact maximal lift.
 
 ### Progress Summary
 
 `GET /api/progress/summary` returns:
 
-- Total number of workouts
+- Total workout count
 - Distinct training days during the last 7 days
 - Distinct training days during the last 30 days
 - Total sets recorded during the last 7 days
 - Date of the latest workout
-- Most-trained exercise during the last 30 days, measured by set count
+- Most-trained exercise during the last 30 days
+
+The most-trained exercise is measured by recorded set count.
 
 ## Training Goal Lifecycle
 
-A training goal starts with the `ACTIVE` status and can reach exactly one terminal status:
+A training goal starts with `ACTIVE` status and can reach one terminal status:
 
-- `COMPLETED` when a workout contains one set that reaches both the target weight and target repetitions
-- `CANCELLED` when the authenticated owner cancels it manually
-- `EXPIRED` after its target date passes
+- `COMPLETED`
+- `CANCELLED`
+- `EXPIRED`
+
+A goal becomes `COMPLETED` when one workout set reaches both:
+
+- The target weight
+- The target repetition count
+
+Values from different sets are not combined.
+
+A goal becomes `CANCELLED` when its authenticated owner cancels it manually.
+
+A goal becomes `EXPIRED` after its target date passes.
 
 A goal remains active throughout its target date. Only goals whose `targetDate` is earlier than the current date are expired.
 
-Overdue goals are updated at midnight by a scheduled component. The scheduler uses a transactional JPQL bulk update, so all matching `ACTIVE` goals are changed to `EXPIRED` with one database statement. Listing goals remains a read-only operation.
+Overdue goals are updated at midnight by a scheduled component. The scheduler uses a transactional JPQL bulk update, allowing all matching active goals to be updated through one database statement.
 
-Workout creation checks active goals after the workout and its nested exercises and sets have been assembled. A goal is completed only when:
+Workout creation checks active goals after the workout aggregate has been assembled.
 
-1. The goal and workout belong to the same user.
-2. The workout contains the goal's exercise.
+A goal is completed only when:
+
+1. The goal belongs to the workout owner.
+2. The workout contains the targeted exercise.
 3. The workout was recorded after the goal was created.
-4. The same set reaches both the target weight and target repetitions.
+4. One set reaches both target values.
 5. The target date has not passed.
 
-The workout response reports how many goals were completed through `goalsCompleted`.
+The create-workout response reports the number of completed goals through:
+
+```json
+{
+  "goalsCompleted": 1
+}
+```
 
 ## Workout Template Workflow
 
-A workout template stores a reusable training structure independently of workout history:
+A workout template stores a reusable training structure independently from workout history.
 
-1. The authenticated user creates a template with ordered exercises and target sets.
-2. Every exercise must be either a global `SYSTEM` exercise or a `CUSTOM` exercise owned by that user.
-3. The same exercise definition cannot appear twice in one template.
-4. The API stores target weight, repetitions, and optional RIR without creating a workout.
-5. `GET /api/workout-templates/{templateId}/workout-draft` converts the template into a `WorkoutRequest` with the current date.
-6. The returned draft can be edited by the client.
-7. The client explicitly submits the final request to `POST /api/workouts` when the workout should be saved.
+The workflow is:
 
-Generating a draft is a read-only operation. It does not change the template and does not persist a workout.
+1. The authenticated user creates a template.
+2. The template contains ordered exercises.
+3. Every exercise contains ordered target sets.
+4. Referenced exercises must be accessible to the user.
+5. The same exercise cannot appear twice in one template.
+6. The template is saved without creating a workout.
+7. The user requests a workout draft from the template.
+8. The API converts template target values into a `WorkoutRequest`.
+9. The generated draft uses the current date.
+10. The client may edit the draft.
+11. The client sends the final request to `POST /api/workouts`.
+12. Only that final request persists workout history.
+
+Generating a draft:
+
+- Is read-only
+- Does not modify the template
+- Does not save a workout
+- Does not create exercise sets in workout history
 
 ## Request and Response Examples
 
@@ -518,7 +852,7 @@ Example response:
 }
 ```
 
-### Create a Custom Exercise Definition
+### Create a Custom Exercise
 
 ```http
 POST /api/exercises
@@ -533,8 +867,6 @@ Content-Type: application/json
 }
 ```
 
-Every exercise created through this endpoint receives the `CUSTOM` type and belongs to the authenticated user. Global `SYSTEM` exercises are available to all users but cannot be created, updated, or archived through user endpoints.
-
 Example response:
 
 ```json
@@ -546,6 +878,14 @@ Example response:
   "archived": false
 }
 ```
+
+Every exercise created through this endpoint:
+
+- Receives the `CUSTOM` type
+- Belongs to the authenticated user
+- Is not accessible to other users
+
+Global system exercises remain read-only.
 
 ### Create a Workout
 
@@ -579,7 +919,97 @@ Content-Type: application/json
 }
 ```
 
-If the workout completes one or more active goals, the create-workout response includes the corresponding value in `goalsCompleted`.
+Example response:
+
+```json
+{
+  "id": 10,
+  "workoutName": "Push Day",
+  "date": "2026-07-22",
+  "exerciseResponses": [
+    {
+      "id": 31,
+      "exerciseNumber": 1,
+      "exerciseName": "Bench Press",
+      "setResponses": [
+        {
+          "id": 91,
+          "setNumber": 1,
+          "weight": 80.0,
+          "reps": 8,
+          "rir": 2
+        },
+        {
+          "id": 92,
+          "setNumber": 2,
+          "weight": 100.0,
+          "reps": 5,
+          "rir": 1
+        }
+      ]
+    }
+  ],
+  "goalsCompleted": 1
+}
+```
+
+### Partially Update Workout Metadata
+
+At least one field must be supplied.
+
+```http
+PATCH /api/workouts/10
+Authorization: Bearer <access-token>
+Content-Type: application/json
+```
+
+```json
+{
+  "workoutName": "Updated Push Day"
+}
+```
+
+The following request is rejected:
+
+```json
+{}
+```
+
+because it does not provide a name or date.
+
+### Partially Update a Set
+
+Only supplied fields are changed.
+
+```http
+PATCH /api/workouts/10/exercises/1/sets/2
+Authorization: Bearer <access-token>
+Content-Type: application/json
+```
+
+```json
+{
+  "reps": 9,
+  "rir": 0
+}
+```
+
+### Duplicate a Workout
+
+```http
+POST /api/workouts/10/duplicate
+Authorization: Bearer <access-token>
+Content-Type: application/json
+```
+
+```json
+{
+  "workoutName": "Push Day - Week 2",
+  "date": "2026-07-29"
+}
+```
+
+The original workout remains unchanged.
 
 ### Create a Training Goal
 
@@ -646,7 +1076,7 @@ PATCH /api/training-goals/1/cancel
 Authorization: Bearer <access-token>
 ```
 
-Only an `ACTIVE` goal can be cancelled. Completed, expired, and already cancelled goals keep their current status and produce a conflict response.
+Only an active goal can be cancelled.
 
 ### Create a Workout Template
 
@@ -679,9 +1109,9 @@ Content-Type: application/json
 }
 ```
 
-The API assigns exercise and set numbers according to their position in the request.
+Exercise and set numbers are assigned according to request order.
 
-### Prepare a Workout Draft from a Template
+### Prepare a Workout Draft
 
 ```http
 GET /api/workout-templates/1/workout-draft
@@ -714,41 +1144,11 @@ Example response:
 }
 ```
 
-This response is only a draft. Nothing is saved until the client sends it to `POST /api/workouts`.
-
-### Partially Update a Set
-
-Only supplied fields are changed.
+Nothing is persisted until the client submits the draft to:
 
 ```http
-PATCH /api/workouts/10/exercises/1/sets/2
-Authorization: Bearer <access-token>
-Content-Type: application/json
+POST /api/workouts
 ```
-
-```json
-{
-  "reps": 9,
-  "rir": 0
-}
-```
-
-### Duplicate a Workout
-
-```http
-POST /api/workouts/10/duplicate
-Authorization: Bearer <access-token>
-Content-Type: application/json
-```
-
-```json
-{
-  "workoutName": "Push Day - Week 2",
-  "date": "2026-07-29"
-}
-```
-
-The original workout remains unchanged.
 
 ### Paginated Personal Records
 
@@ -786,7 +1186,19 @@ Authorization: Bearer <access-token>
 }
 ```
 
-When the user has no recorded sets, the endpoint returns `200 OK` with an empty `content` list.
+Users without recorded sets receive:
+
+```json
+{
+  "content": [],
+  "page": 0,
+  "size": 20,
+  "totalElements": 0,
+  "totalPages": 0,
+  "first": true,
+  "last": true
+}
+```
 
 ### Progress Summary
 
@@ -837,45 +1249,75 @@ When the user has no recorded sets, the endpoint returns `200 OK` with an empty 
 
 The API validates:
 
-- Usernames, email addresses, and passwords
-- Exercise names and muscle groups
-- Workout names and dates
+- Usernames
+- Email addresses
+- Passwords
+- Exercise names
+- Muscle groups
+- Workout names
+- Workout dates
 - Exercise-definition IDs
-- Weight, repetitions, and RIR values
+- Weight values
+- Repetition values
+- RIR values
 - Positive path variables
-- Page indexes and page sizes
+- Page indexes
+- Page sizes
 - Start and end date ordering
-- Non-empty exercise and set collections
-- Training-goal target dates strictly in the future
-- Positive target weights and repetition counts
+- Non-empty nested collections
+- At least one supplied field in partial updates
+- Training-goal target dates
+- Positive training-goal targets
 - One active goal per user and exercise
 - Training-goal ownership
-- Valid status transitions when cancelling a goal
-- Exercise access based on `SYSTEM` or user-owned `CUSTOM` type
-- Custom-exercise ownership for update and archive operations
-- Unique normalized template names per user
-- Non-empty template exercise and set collections
-- Positive target weight and repetition values with valid RIR ranges
-- No duplicated exercise definitions inside one workout template
-- Workout-template ownership for read, draft, and delete operations
+- Valid goal status transitions
+- Exercise accessibility
+- Custom-exercise ownership
+- Unique normalized template names
+- Valid template target values
+- Duplicate exercises inside one template
+- Workout-template ownership
 
-The global exception handler translates validation and business failures into responses such as:
+The global exception handler uses `ProblemDetail`.
+
+Typical status codes include:
 
 - `400 Bad Request` for invalid input or date ranges
-- `401 Unauthorized` for invalid credentials, tokens, or authentication
-- `404 Not Found` for missing workouts, exercises, sets, records, or user-owned goals
-- `409 Conflict` for duplicate accounts, duplicate exercise names, duplicate active goals, or incompatible goal statuses
+- `401 Unauthorized` for missing or invalid authentication
+- `404 Not Found` for missing or inaccessible user-owned resources
+- `409 Conflict` for duplicate resources or invalid lifecycle transitions
+- `500 Internal Server Error` for unexpected server failures
 
-Example business-error response:
+Example not-found response:
 
 ```json
 {
-  "error": "Not found",
-  "message": "Workout not found"
+  "type": "urn:problem:workout-not-found",
+  "title": "Workout not found",
+  "status": 404,
+  "detail": "Workout not found",
+  "instance": "/api/workouts/10",
+  "code": "WORKOUT_NOT_FOUND"
 }
 ```
 
-Validation failures are returned as field-to-message mappings.
+Example validation response:
+
+```json
+{
+  "type": "urn:problem:validation-error",
+  "title": "Validation failed",
+  "status": 400,
+  "detail": "One or more fields are invalid",
+  "instance": "/api/workouts",
+  "code": "VALIDATION_ERROR",
+  "fieldErrors": {
+    "workoutName": "Workout name must contain at least 3 characters"
+  }
+}
+```
+
+Stable error codes allow API clients to react to failures without depending only on human-readable messages.
 
 ## Running with Docker
 
@@ -892,7 +1334,9 @@ cd fitness-tracker-api
 cp .env.example .env
 ```
 
-Update `.env` with a database password and a long JWT secret, then run:
+Update `.env` with a database password and long JWT secret.
+
+Start the stack:
 
 ```bash
 docker compose up --build
@@ -903,7 +1347,7 @@ Docker Compose:
 1. Starts MySQL 8.
 2. Waits for the database health check.
 3. Starts the API.
-4. Runs Flyway migrations automatically.
+4. Runs Flyway migrations.
 5. Validates the schema through Hibernate.
 
 Available services:
@@ -913,21 +1357,25 @@ Available services:
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 - Health check: `http://localhost:8080/actuator/health`
 
-Stop the services:
+Stop the stack:
 
 ```bash
 docker compose down
 ```
 
-MySQL data is preserved in the named volume `fitness_tracker_mysql_data`.
+MySQL data is preserved in the named volume:
 
-To also remove the local database volume and recreate an empty database:
+```text
+fitness_tracker_mysql_data
+```
+
+Remove the containers and database volume:
 
 ```bash
 docker compose down -v
 ```
 
-This permanently removes the data stored in that Docker volume.
+This permanently removes the database data stored in the Docker volume.
 
 ## Running Locally
 
@@ -944,13 +1392,13 @@ CREATE DATABASE fitness_tracker_db;
 
 Flyway creates the tables when the application starts.
 
-Create the environment file:
+Create an environment file:
 
 ```bash
 cp .env.example .env
 ```
 
-Update `.env`, then start the application:
+Start the application:
 
 ```bash
 ./mvnw spring-boot:run
@@ -962,7 +1410,11 @@ On Windows PowerShell:
 .\mvnw.cmd spring-boot:run
 ```
 
-The API starts on `http://localhost:8080`.
+The API starts at:
+
+```text
+http://localhost:8080
+```
 
 ## Environment Variables
 
@@ -972,15 +1424,20 @@ The API starts on `http://localhost:8080`.
 | `DB_USERNAME` | Yes | `root` | Database username |
 | `DB_PASSWORD` | Yes | `your_local_password` | Database password |
 | `JWT_SECRET` | Yes | A long random value | Secret used to sign JWT access tokens |
-| `SPRING_JPA_HIBERNATE_DDL_AUTO` | No | `validate` | Optional Hibernate schema-strategy override |
+| `SPRING_JPA_HIBERNATE_DDL_AUTO` | No | `validate` | Hibernate schema strategy override |
 
-When running the API inside Docker, the database URL uses the Compose service name and internal port:
+Inside Docker, the API uses the Compose service name:
 
 ```text
 jdbc:mysql://mysql:3306/fitness_tracker_db
 ```
 
-Do not commit `.env` or real production secrets.
+Do not commit:
+
+- `.env`
+- Database passwords
+- JWT secrets
+- Production credentials
 
 ## Swagger and Health Check
 
@@ -1000,17 +1457,17 @@ To call protected endpoints through Swagger:
 
 1. Register or log in.
 2. Copy the access token.
-3. Select **Authorize** in Swagger UI.
+3. Select **Authorize**.
 4. Paste the token.
 5. Call a protected endpoint.
 
-Public health endpoint:
+Health endpoint:
 
 ```text
 http://localhost:8080/actuator/health
 ```
 
-Example response:
+Example:
 
 ```json
 {
@@ -1020,7 +1477,7 @@ Example response:
 
 ## Testing
 
-Run the complete suite:
+Run the complete verification lifecycle:
 
 ```bash
 ./mvnw clean verify
@@ -1032,55 +1489,116 @@ On Windows PowerShell:
 .\mvnw.cmd clean verify
 ```
 
-The automated test suite includes:
+Run one test class:
+
+```powershell
+.\mvnw.cmd "-Dtest=WorkoutServiceTest" test
+```
+
+The automated suite includes:
 
 - Service unit tests with JUnit and Mockito
+- Real mapper behavior injected through Mockito spies
 - Controller tests with MockMvc
 - Spring Boot integration tests backed by MySQL
 - Authentication and refresh-token tests
-- Resource-ownership tests
-- Validation and exception-response tests
+- Ownership and access-control tests
+- Validation and `ProblemDetail` response tests
 - Workout duplication tests
-- Exercise-history and progress-summary tests
+- Exercise-history tests
+- Progress-summary tests
 - Native personal-record query integration tests
-- Personal-record pagination and projection-mapping tests
-- Training-goal creation, pagination, cancellation, completion, and expiration tests
-- Training-goal validation, ownership, duplicate-active-goal, and invalid-status tests
-- Scheduled bulk-expiration query tests
-- Workout-template creation, duplicate-name, duplicate-exercise, access, ownership, deletion, and draft-generation service tests
+- Projection-mapping tests
+- Pagination tests
+- Training-goal lifecycle tests
+- Scheduled goal-expiration tests
+- Workout-template service tests
+- Workout persistence and nested-response integration tests
 
-The personal-record repository tests verify:
+### Service Testing Strategy
 
-- Weight, repetitions, RIR, and date priority
-- Exclusion of records belonging to another user
-- Correct `totalElements` and `totalPages`
-- Multiple pages with different exercise records
-- An empty result for a user without recorded sets
+Service tests use:
 
-The training-goal tests verify:
+```java
+@Mock
+private WorkoutRepository workoutRepository;
 
-- Successful creation with the correct initial status
-- Rejection of current and past target dates
-- Enforcement of one active goal per user and exercise
-- Creation of a new goal after a previous goal reaches a terminal status
-- Completion only when the same set reaches both target values
-- Isolation between different users' workouts and goals
-- Rejection of workouts recorded before goal creation
-- Successful cancellation of active goals
-- Rejection of invalid status transitions
-- Expiration of only overdue `ACTIVE` goals
-- Controller validation, pagination, `404 Not Found`, and `409 Conflict` responses
+@Mock
+private CurrentUserProvider currentUserProvider;
 
-The workout-template service tests verify:
+@Spy
+private WorkoutMapper workoutMapper = new WorkoutMapper();
 
-- Creation of nested templates with ordered exercises and sets
-- Rejection of normalized duplicate template names
-- Rejection of duplicate exercise definitions inside one template
-- Rejection of missing or inaccessible exercise definitions
-- Ownership checks when retrieving and deleting templates
-- Cascade-oriented deletion through the owned template aggregate
-- Conversion from target set values to a workout draft
-- Absence of save operations while generating a draft
+@InjectMocks
+private WorkoutService workoutService;
+```
+
+This strategy keeps:
+
+- Database access mocked
+- Authentication access mocked
+- Business services isolated
+- Mapper transformations real
+- Spring context startup unnecessary for unit tests
+
+### Personal-Record Tests
+
+Personal-record tests verify:
+
+- Highest-weight priority
+- Repetition priority when weights are equal
+- RIR priority
+- Date priority
+- User isolation
+- Correct page metadata
+- Multiple exercises across pages
+- Empty results for users without sets
+
+### Training-Goal Tests
+
+Training-goal tests verify:
+
+- Successful creation
+- Correct initial status
+- Rejection of invalid target dates
+- One active goal per user and exercise
+- Creation after a previous terminal goal
+- Completion when the same set reaches both targets
+- No completion when targets are split across sets
+- User isolation
+- Workout-date validation
+- Manual cancellation
+- Invalid lifecycle transitions
+- Scheduled expiration
+- Pagination and ownership behavior
+
+### Workout-Template Tests
+
+Workout-template tests verify:
+
+- Nested template creation
+- Ordered exercises and sets
+- Normalized duplicate-name rejection
+- Duplicate-exercise rejection
+- Missing or inaccessible exercise rejection
+- Ownership protection
+- Nested deletion behavior
+- Template-to-workout-draft conversion
+- No persistence during draft generation
+
+### Integration Testing
+
+Integration tests verify:
+
+- Real entity persistence
+- Nested JPA relationships
+- Repository queries
+- Controller-to-database behavior
+- Serialized nested API responses
+- Authentication and ownership boundaries
+- Standardized error responses
+
+Persistence-context cleanup is used where necessary to ensure that requests reload the same relationship state that would be loaded in production.
 
 ## Continuous Integration
 
@@ -1090,12 +1608,14 @@ The pipeline:
 
 1. Checks out the repository.
 2. Starts a MySQL 8 service container.
-3. Configures Java 26 and the Maven dependency cache.
-4. Runs Flyway against the test database.
-5. Builds the project.
-6. Executes `./mvnw --batch-mode clean verify`.
+3. Configures Java 26.
+4. Restores the Maven dependency cache.
+5. Runs Flyway against the test database.
+6. Compiles the project.
+7. Executes the complete verification lifecycle.
+8. Fails the build when any test fails.
 
-The current build status is displayed by the badge at the top of this README.
+The current build status is displayed through the badge at the top of this README.
 
 ## Project Structure
 
@@ -1107,17 +1627,27 @@ fitness-tracker-api/
 ├── src/
 │   ├── main/
 │   │   ├── java/com/cosmin/fitness_tracker_api/
-│   │   │   ├── Controller/
-│   │   │   ├── DTO/
-│   │   │   ├── Enum/
-│   │   │   ├── Exception/
-│   │   │   ├── Model/
-│   │   │   ├── Repository/
+│   │   │   ├── controller/
+│   │   │   ├── dto/
+│   │   │   ├── enums/
+│   │   │   ├── exception/
+│   │   │   ├── mapper/
+│   │   │   │   ├── ExerciseDefinitionMapper.java
+│   │   │   │   ├── ProgressMapper.java
+│   │   │   │   ├── TrainingGoalMapper.java
+│   │   │   │   ├── WorkoutMapper.java
+│   │   │   │   └── WorkoutTemplateMapper.java
+│   │   │   ├── model/
+│   │   │   ├── repository/
 │   │   │   │   └── Projection/
-│   │   │   ├── Security/
-│   │   │   └── Service/
+│   │   │   ├── security/
+│   │   │   │   ├── CurrentUserProvider.java
+│   │   │   │   ├── SpringSecurityCurrentUserProvider.java
+│   │   │   │   └── ...
+│   │   │   └── service/
 │   │   └── resources/
-│   │       ├── db/migration/
+│   │       ├── db/
+│   │       │   └── migration/
 │   │       └── application.properties
 │   └── test/
 │       ├── java/com/cosmin/fitness_tracker_api/
@@ -1137,73 +1667,224 @@ fitness-tracker-api/
 
 - Passwords are stored as BCrypt hashes.
 - The API does not use HTTP sessions.
-- Access tokens are signed with `HS256` and expire after 15 minutes.
-- Refresh tokens are persisted, validated, rotated, and revocable.
+- Access tokens are signed with `HS256`.
+- Access tokens expire after 15 minutes.
+- Refresh tokens are persisted and revocable.
+- Refresh tokens are rotated when used.
 - Refresh tokens expire after 7 days.
-- CSRF is disabled because the API uses stateless bearer-token authentication.
+- CSRF is disabled for stateless bearer-token authentication.
 - Database credentials and JWT secrets are externalized.
-- Workouts are queried by both resource ID and authenticated username.
-- Progress queries filter by the authenticated username.
-- Training goals are queried by both goal ID and authenticated username.
-- Exercise queries expose only global system exercises and custom exercises owned by the authenticated user.
-- Only owned custom exercises can be updated or archived; system exercises remain read-only.
-- Workout templates are queried by both template ID and authenticated username.
-- Users cannot read or modify another user's workouts through their IDs.
-- Users cannot view or cancel another user's training goals through their IDs.
-- Users cannot read, convert, or delete another user's workout templates through their IDs.
-- Authentication, Swagger/OpenAPI, and `/actuator/health` are the only public endpoint groups.
+- The authenticated username is resolved through `CurrentUserProvider`.
+- Services do not depend directly on `SecurityContextHolder`.
+- Workouts are queried by resource ID and authenticated username.
+- Progress queries filter by authenticated username.
+- Training goals are queried by goal ID and authenticated username.
+- Exercise queries return only global system exercises and owned custom exercises.
+- Only owned custom exercises can be modified.
+- Workout templates are queried by template ID and authenticated username.
+- Another user's resource ID is treated as a missing resource.
+- Authentication, Swagger/OpenAPI, and `/actuator/health` are public.
+- All other endpoint groups require authentication.
 
-Production deployments should use HTTPS, dedicated database credentials, a long random JWT secret, and separate production configuration.
+Production deployments should use:
+
+- HTTPS
+- Dedicated database credentials
+- A long random JWT secret
+- Separate production configuration
+- Restricted network access to MySQL
+- Centralized secret management
 
 ## Roadmap
 
-- Add a Testcontainers integration test for workout-template persistence and cascade deletion
-- Add JaCoCo coverage reporting
-- Deploy the API to a public cloud platform
-- Add structured logging and additional Actuator metrics
+The project will remain a modular monolith while the current architecture is strengthened. Microservices, Kafka, and Kubernetes are intentionally not priorities until the application has requirements that justify them.
+
+### Phase 1 — Backend Foundation
+
+Completed:
+
+- Centralize authenticated-user access through `CurrentUserProvider`
+- Standardize API errors through `ProblemDetail`
+- Extract DTO construction into dedicated mappers
+- Reduce service-layer mapping duplication
+- Update tests for mapper integration
+- Clean obsolete repository mapping calls
+- Synchronize integration tests with nested entity relationships
+- Improve package and code organization
+
+### Phase 2 — JPA, SQL, and Performance
+
+Planned:
+
+- Identify remaining N+1 queries
+- Add SQL query-count tests for important endpoints
+- Use `@EntityGraph` where appropriate
+- Add targeted `JOIN FETCH` queries
+- Use DTO projections for read-heavy endpoints
+- Avoid loading complete aggregates when only summaries are needed
+- Review pagination queries involving nested relationships
+- Measure progress-summary query behavior
+- Review indexes using actual query plans
+- Add indexes only where measurements justify them
+- Prevent mapper execution from hiding inefficient lazy loading
+
+### Phase 3 — Security Hardening
+
+Planned:
+
+- Hash refresh tokens before database persistence
+- Revoke active refresh tokens after password changes
+- Move token lifetimes into external configuration
+- Improve JWT validation and error differentiation
 - Add rate limiting to authentication endpoints
-- Add profile and password-management endpoints
-- Add full `PUT` replacement support for workout templates
-- Optimize remaining nested summary queries after measuring their SQL behavior
+- Add account-level token revocation
+- Review password-reset token handling
+- Add authentication audit events
+- Review CORS configuration for production deployment
+- Improve secret management for deployed environments
+
+### Phase 4 — Transactions and Concurrency
+
+Planned:
+
+- Review transaction boundaries across service methods
+- Add database constraints for business invariants
+- Prevent concurrent creation of duplicate active goals
+- Add locking only where race conditions are demonstrated
+- Review bulk-update persistence-context behavior
+- Add idempotency protection for selected write operations
+- Test concurrent refresh-token rotation
+- Test concurrent workout and training-goal updates
+- Ensure aggregate updates remain atomic
+
+### Phase 5 — Advanced Testing
+
+Planned:
+
+- Add Testcontainers-based MySQL integration tests
+- Add JaCoCo coverage reporting
+- Add coverage thresholds for critical packages
+- Add architecture tests for layer boundaries
+- Add query-count regression tests
+- Add concurrency tests
+- Add additional security integration tests
+- Test refresh-token reuse and revocation scenarios
+- Add persistence tests for template cascade deletion
+- Add complete `ProblemDetail` contract tests
+
+### Phase 6 — Observability and Deployment
+
+Planned:
+
+- Add structured application logging
+- Add request correlation IDs
+- Add additional Actuator metrics
+- Add database and authentication metrics
+- Add production-ready health indicators
+- Separate local, test, and production profiles
+- Deploy the API to a public cloud platform
+- Configure HTTPS
+- Configure production secrets
+- Add automated database backups
+- Add container image publishing
+- Add deployment checks to CI/CD
+
+### Phase 7 — Domain Features
+
+Potential future additions:
+
+- Full `PUT` replacement for workout templates
+- Template update operations
+- Additional training-goal filtering
+- Historical training-goal views
+- Progress trends grouped by week or month
+- Personal-record history instead of only the current best set
+- Exercise-specific progress charts for a future frontend
+- User profile management
+- Password-management endpoints
+- Account deletion and personal-data export
+- Additional workout statistics
+- More detailed training summaries
 
 ## What I Learned
 
 While building this project, I practiced:
 
-- Designing and documenting REST APIs with Spring Boot
-- Separating controllers, services, repositories, entities, projections, and DTOs
-- Modeling nested JPA relationships and aggregate ownership
-- Implementing JWT authentication and Spring Security filters
-- Implementing refresh-token persistence, rotation, expiration, and revocation
+- Designing REST APIs with Spring Boot
+- Building a modular monolith
+- Separating controllers, services, repositories, mappers, projections, and DTOs
+- Applying constructor injection
+- Abstracting authenticated-user access
+- Reducing coupling with Spring Security internals
+- Modeling nested JPA relationships
+- Maintaining both sides of bidirectional relationships
+- Implementing JWT authentication
+- Implementing refresh-token persistence and rotation
 - Protecting user-owned resources
 - Using `POST`, `GET`, `PUT`, `PATCH`, and `DELETE` appropriately
-- Implementing pagination, filtering, sorting, and date-range validation
-- Maintaining ordered nested resources after deletion
-- Duplicating aggregates with their child entities
-- Calculating workout volume, personal records, progress summaries, and estimated 1RM
-- Modeling a training-goal lifecycle with explicit terminal statuses
-- Modeling global system exercises and private user-owned custom exercises
-- Preserving workout history by archiving custom definitions instead of deleting them
-- Modeling reusable workout templates as nested aggregates
-- Converting persisted templates into editable workout drafts without side effects
-- Completing goals from nested workout data while preserving user ownership
-- Running scheduled maintenance with Spring's scheduling support
+- Implementing partial-update validation
+- Implementing pagination, filtering, and sorting
+- Validating date ranges
+- Maintaining ordered nested resources
+- Duplicating aggregates and child entities
+- Calculating workout volume
+- Calculating estimated one-repetition maximum
+- Selecting personal records
+- Building progress summaries
+- Modeling a training-goal lifecycle
+- Modeling global and user-owned exercise definitions
+- Archiving definitions without deleting workout history
+- Modeling reusable workout templates
+- Generating editable drafts without persistence side effects
+- Running scheduled maintenance tasks
 - Performing transactional JPQL bulk updates
-- Using MySQL window functions to select one ranked result per group
-- Returning native query results through interface projections
-- Implementing database-level pagination with a dedicated count query
+- Using MySQL window functions
+- Returning native query results through projections
+- Implementing database-level pagination
+- Extracting entity-to-DTO mapping into dedicated components
+- Returning standardized API errors with `ProblemDetail`
 - Managing schema evolution with Flyway
-- Validating the database schema through Hibernate
+- Validating schemas with Hibernate
 - Writing unit tests with JUnit and Mockito
+- Using mocks for external dependencies
+- Using spies for real mapper implementations
 - Testing controllers with MockMvc
-- Writing database-backed repository integration tests
-- Containerizing Spring Boot and MySQL with Docker Compose
+- Writing database-backed integration tests
+- Handling JPA persistence-context behavior in tests
+- Containerizing Spring Boot and MySQL
 - Automating builds and tests with GitHub Actions
-- Exposing API documentation and operational health checks
+- Exposing Swagger documentation
+- Exposing operational health checks
+- Planning performance improvements based on measurements rather than assumptions
 
 ## Status
 
-The core API, progress analytics, training-goal lifecycle, global and custom exercise definitions, and workout-template workflow are implemented and actively maintained as a backend portfolio project. The `main` branch includes automated tests and continuous integration.
+The following major areas are implemented:
+
+- Authentication and refresh-token rotation
+- Global and custom exercise definitions
+- Nested workout management
+- Workout duplication
+- Progress analytics
+- Personal records
+- Exercise history
+- Training-goal lifecycle
+- Scheduled goal expiration
+- Workout templates
+- Workout-draft generation
+- Centralized current-user access
+- Dedicated DTO mappers
+- Standardized `ProblemDetail` errors
+- Flyway migrations
+- Automated tests
+- Docker
+- Continuous integration
+- Swagger documentation
+- Actuator health monitoring
+
+The project is actively maintained as a backend portfolio project.
+
+The next development focus is improving JPA and SQL performance, followed by security hardening, concurrency protection, advanced testing, and production deployment.
 
 ## Author
 
