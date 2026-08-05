@@ -1,9 +1,9 @@
 package com.cosmin.fitness_tracker_api.ControllerTest;
 
-import com.cosmin.fitness_tracker_api.Controller.AuthController;
+import com.cosmin.fitness_tracker_api.controller.AuthController;
 import com.cosmin.fitness_tracker_api.DTO.AuthResponse;
-import com.cosmin.fitness_tracker_api.Security.JWTFilter;
-import com.cosmin.fitness_tracker_api.Service.AuthService;
+import com.cosmin.fitness_tracker_api.security.JWTFilter;
+import com.cosmin.fitness_tracker_api.service.AuthService;
 import org.junit.jupiter.api.MediaType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

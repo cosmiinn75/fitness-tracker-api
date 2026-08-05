@@ -1,13 +1,12 @@
 package com.cosmin.fitness_tracker_api.ControllerTest;
 
-import com.cosmin.fitness_tracker_api.Controller.ExerciseDefinitionController;
+import com.cosmin.fitness_tracker_api.controller.ExerciseDefinitionController;
 import com.cosmin.fitness_tracker_api.DTO.ExerciseDefinitionRequest;
 import com.cosmin.fitness_tracker_api.DTO.ExerciseDefinitionResponse;
 import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
-import com.cosmin.fitness_tracker_api.Security.JWTFilter;
-import com.cosmin.fitness_tracker_api.Service.ExerciseDefinitionService;
-import org.junit.jupiter.api.MediaType;
+import com.cosmin.fitness_tracker_api.security.JWTFilter;
+import com.cosmin.fitness_tracker_api.service.ExerciseDefinitionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -24,7 +23,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.mockito.Mockito.when;

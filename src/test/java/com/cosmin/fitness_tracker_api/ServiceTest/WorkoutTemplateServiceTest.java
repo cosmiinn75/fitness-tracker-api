@@ -3,33 +3,30 @@ package com.cosmin.fitness_tracker_api.ServiceTest;
 import com.cosmin.fitness_tracker_api.DTO.*;
 import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
-import com.cosmin.fitness_tracker_api.Exception.DuplicateExerciseDefinitionException;
-import com.cosmin.fitness_tracker_api.Exception.ExerciseDefinitionNotFoundException;
-import com.cosmin.fitness_tracker_api.Exception.NameAlreadyExistsException;
-import com.cosmin.fitness_tracker_api.Exception.WorkoutTemplateNotFoundException;
-import com.cosmin.fitness_tracker_api.Model.*;
-import com.cosmin.fitness_tracker_api.Repository.*;
-import com.cosmin.fitness_tracker_api.Service.WorkoutTemplateService;
-import org.junit.jupiter.api.AfterEach;
+import com.cosmin.fitness_tracker_api.exception.DuplicateExerciseDefinitionException;
+import com.cosmin.fitness_tracker_api.exception.ExerciseDefinitionNotFoundException;
+import com.cosmin.fitness_tracker_api.exception.NameAlreadyExistsException;
+import com.cosmin.fitness_tracker_api.exception.WorkoutTemplateNotFoundException;
+import com.cosmin.fitness_tracker_api.mapper.WorkoutTemplateMapper;
+import com.cosmin.fitness_tracker_api.model.*;
+import com.cosmin.fitness_tracker_api.repository.*;
+import com.cosmin.fitness_tracker_api.security.CurrentUserProvider;
+import com.cosmin.fitness_tracker_api.service.WorkoutTemplateService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-
 
 import java.time.LocalDate;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,6 +47,12 @@ public class WorkoutTemplateServiceTest {
     @Mock
     private  UserRepository userRepository;
 
+    @Mock
+    private CurrentUserProvider currentUserProvider;
+
+    @Spy
+    private WorkoutTemplateMapper workoutTemplateMapper = new WorkoutTemplateMapper();
+
     @InjectMocks
     private WorkoutTemplateService workoutTemplateService;
 
@@ -57,7 +60,7 @@ public class WorkoutTemplateServiceTest {
 
     @Test
     void createWorkoutTemplate_shouldCreateTemplateWithExercisesAndSets() {
-        mockAuthenticatedUser();
+
 
         WorkoutTemplateSetRequest setRequest =
                 new WorkoutTemplateSetRequest(
@@ -177,7 +180,7 @@ public class WorkoutTemplateServiceTest {
     @Test
     void createWorkoutTemplate_shouldThrowWhenNormalizedNameAlreadyExists() {
 
-        mockAuthenticatedUser();
+
 
         WorkoutTemplateSetRequest setRequest =
                 new WorkoutTemplateSetRequest(
@@ -232,7 +235,7 @@ public class WorkoutTemplateServiceTest {
 
     @Test
     void createWorkoutTemplate_shouldThrowWhenExerciseDefinitionIsDuplicated() {
-        mockAuthenticatedUser();
+
 
         WorkoutTemplateSetRequest setRequest =
                 new WorkoutTemplateSetRequest(100.0, 5, 2);
@@ -314,7 +317,7 @@ public class WorkoutTemplateServiceTest {
 
     @Test
     void createWorkoutTemplate_shouldThrowWhenExerciseDefinitionIsNotAccessible() {
-        mockAuthenticatedUser();
+
 
         WorkoutTemplateSetRequest setRequest =
                 new WorkoutTemplateSetRequest(100.0, 5, 2);
@@ -372,7 +375,7 @@ public class WorkoutTemplateServiceTest {
 
     @Test
     void getTemplateById_shouldThrowWhenTemplateDoesNotBelongToUser() {
-        mockAuthenticatedUser();
+
 
         when(workoutTemplateRepository.findByIdAndUserUsername(
                 10L,
@@ -395,7 +398,7 @@ public class WorkoutTemplateServiceTest {
 
     @Test
     void deleteTemplateById_shouldThrowWhenTemplateDoesNotBelongToUser() {
-        mockAuthenticatedUser();
+
 
         when(workoutTemplateRepository.findByIdAndUserUsername(
                 5L,
@@ -413,7 +416,7 @@ public class WorkoutTemplateServiceTest {
 
     @Test
     void prepareWorkoutFromTemplate_shouldReturnWorkoutDraftWithoutSaving() {
-        mockAuthenticatedUser();
+
 
         User user = new User();
         user.setId(1L);
@@ -487,19 +490,12 @@ public class WorkoutTemplateServiceTest {
                 .save(any(WorkoutTemplateSet.class));
     }
 
-    @AfterEach
-    void tearDown() {
-        SecurityContextHolder.clearContext();
-    }
+    @BeforeEach
+    void setup(){
 
-    private void mockAuthenticatedUser() {
-        UsernamePasswordAuthenticationToken authToken =
-                new UsernamePasswordAuthenticationToken(
-                        "cosmin",
-                        null,
-                        Collections.emptyList()
-                );
 
-        SecurityContextHolder.getContext().setAuthentication(authToken);
+
+        when(currentUserProvider.getCurrentUsername())
+                .thenReturn("cosmin");
     }
 }

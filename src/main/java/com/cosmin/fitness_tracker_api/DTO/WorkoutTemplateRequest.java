@@ -1,6 +1,5 @@
 package com.cosmin.fitness_tracker_api.DTO;
 
-import com.cosmin.fitness_tracker_api.Model.WorkoutTemplateExercise;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;

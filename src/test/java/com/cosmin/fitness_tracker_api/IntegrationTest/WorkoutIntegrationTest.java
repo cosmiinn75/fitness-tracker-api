@@ -2,9 +2,10 @@ package com.cosmin.fitness_tracker_api.IntegrationTest;
 
 import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.Enum.MuscleGroup;
-import com.cosmin.fitness_tracker_api.Model.*;
-import com.cosmin.fitness_tracker_api.Repository.*;
-import com.cosmin.fitness_tracker_api.Service.TrainingGoalService;
+import com.cosmin.fitness_tracker_api.model.*;
+import com.cosmin.fitness_tracker_api.repository.*;
+import com.cosmin.fitness_tracker_api.service.TrainingGoalService;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +55,9 @@ public class WorkoutIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private TrainingGoalService trainingGoalService;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @BeforeEach
     void setup() {
@@ -139,7 +143,9 @@ public class WorkoutIntegrationTest extends AbstractIntegrationTest {
 
         User savedUser = userRepository.saveAndFlush(user);
 
-        ExerciseDefinition exerciseDefinition = new ExerciseDefinition();
+        ExerciseDefinition exerciseDefinition =
+                new ExerciseDefinition();
+
         exerciseDefinition.setName("Bench Press");
         exerciseDefinition.setMuscleGroup(MuscleGroup.CHEST);
         exerciseDefinition.setExerciseType(ExerciseType.SYSTEM);
@@ -147,41 +153,87 @@ public class WorkoutIntegrationTest extends AbstractIntegrationTest {
         exerciseDefinition.setNormalizedName("bench press");
 
         ExerciseDefinition savedExerciseDefinition =
-                exerciseDefinitionRepository.saveAndFlush(exerciseDefinition);
+                exerciseDefinitionRepository.saveAndFlush(
+                        exerciseDefinition
+                );
 
         Workout workout = new Workout();
         workout.setUser(savedUser);
         workout.setWorkoutName("Push");
         workout.setDate(LocalDate.of(2026, 7, 5));
 
-        Workout savedWorkout = workoutRepository.saveAndFlush(workout);
+        Workout savedWorkout =
+                workoutRepository.saveAndFlush(workout);
 
-        WorkoutExercise workoutExercise = new WorkoutExercise();
-        workoutExercise.setExerciseDefinition(savedExerciseDefinition);
+        WorkoutExercise workoutExercise =
+                new WorkoutExercise();
+
+        workoutExercise.setExerciseDefinition(
+                savedExerciseDefinition
+        );
         workoutExercise.setWorkout(savedWorkout);
         workoutExercise.setExerciseNumber(1);
 
+        savedWorkout.getWorkoutExercises()
+                .add(workoutExercise);
+
         WorkoutExercise savedWorkoutExercise =
-                workoutExerciseRepository.saveAndFlush(workoutExercise);
+                workoutExerciseRepository.saveAndFlush(
+                        workoutExercise
+                );
 
         ExerciseSet exerciseSet = new ExerciseSet();
         exerciseSet.setSetNumber(1);
         exerciseSet.setWeight(100.0);
         exerciseSet.setReps(10);
         exerciseSet.setRir(1);
-        exerciseSet.setWorkoutExercise(savedWorkoutExercise);
+        exerciseSet.setWorkoutExercise(
+                savedWorkoutExercise
+        );
+
+        savedWorkoutExercise.getExerciseSets()
+                .add(exerciseSet);
 
         exerciseSetRepository.saveAndFlush(exerciseSet);
 
+        entityManager.flush();
+        entityManager.clear();
+
         mockMvc.perform(
-                        get("/api/workouts/{workoutId}", savedWorkout.getId())
+                        get(
+                                "/api/workouts/{workoutId}",
+                                savedWorkout.getId()
+                        )
                 )
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.workoutName").value("Push"))
-                .andExpect(jsonPath("$.date").value("2026-07-05"))
-                .andExpect(jsonPath("$.exerciseResponses").isArray())
-                .andExpect(jsonPath("$.exerciseResponses.length()").value(1));
+                .andExpect(
+                        jsonPath("$.workoutName")
+                                .value("Push")
+                )
+                .andExpect(
+                        jsonPath("$.date")
+                                .value("2026-07-05")
+                )
+                .andExpect(
+                        jsonPath("$.exerciseResponses")
+                                .isArray()
+                )
+                .andExpect(
+                        jsonPath(
+                                "$.exerciseResponses.length()"
+                        ).value(1)
+                )
+                .andExpect(
+                        jsonPath(
+                                "$.exerciseResponses[0].exerciseName"
+                        ).value("Bench Press")
+                )
+                .andExpect(
+                        jsonPath(
+                                "$.exerciseResponses[0].setResponses.length()"
+                        ).value(1)
+                );
     }
 
     @Test

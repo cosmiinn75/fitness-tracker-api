@@ -1,13 +1,13 @@
 package com.cosmin.fitness_tracker_api.ControllerTest;
 
 
-import com.cosmin.fitness_tracker_api.Controller.TrainingGoalController;
+import com.cosmin.fitness_tracker_api.controller.TrainingGoalController;
 import com.cosmin.fitness_tracker_api.DTO.PagedResponse;
 import com.cosmin.fitness_tracker_api.DTO.TrainingGoalRequest;
 import com.cosmin.fitness_tracker_api.DTO.TrainingGoalResponse;
 import com.cosmin.fitness_tracker_api.Enum.Status;
-import com.cosmin.fitness_tracker_api.Security.JWTFilter;
-import com.cosmin.fitness_tracker_api.Service.TrainingGoalService;
+import com.cosmin.fitness_tracker_api.security.JWTFilter;
+import com.cosmin.fitness_tracker_api.service.TrainingGoalService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
