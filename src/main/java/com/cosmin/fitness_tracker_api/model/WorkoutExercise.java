@@ -4,6 +4,7 @@ package com.cosmin.fitness_tracker_api.model;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +29,7 @@ public class WorkoutExercise {
 
 
     @OneToMany(mappedBy = "workoutExercise" , cascade = CascadeType.ALL , orphanRemoval = true)
+    @BatchSize(size = 50)
     private List<ExerciseSet> exerciseSets = new ArrayList<>();
 
 

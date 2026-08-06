@@ -238,7 +238,7 @@
                     2
             );
 
-            when(trainingGoalRepository.findByUserUsernameOrderByIdAsc("cosmin",pageable)).thenReturn(trainingGoalPage);
+            when(trainingGoalRepository.findPageWithExerciseDefinitionByUserUsername("cosmin",pageable)).thenReturn(trainingGoalPage);
 
             PagedResponse<TrainingGoalResponse> response = trainingGoalService.getTrainingGoals(page,size);
 
@@ -258,7 +258,7 @@
             assertEquals(100.00,response2.targetWeight());
 
 
-            verify(trainingGoalRepository).findByUserUsernameOrderByIdAsc("cosmin",pageable);
+            verify(trainingGoalRepository).findPageWithExerciseDefinitionByUserUsername("cosmin",pageable);
         }
 
         @Test

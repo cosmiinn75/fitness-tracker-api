@@ -58,7 +58,7 @@ public class ProgressService {
         String username = currentUserProvider.getCurrentUsername();
 
 
-        Workout workout = workoutRepository.findByIdAndUserUsername(id,username)
+        Workout workout = workoutRepository.findDetailedByIdAndUserUsername(id,username)
                 .orElseThrow(
                         () -> new WorkoutNotFoundException("Workout with id: " + id + " not found")
                 );

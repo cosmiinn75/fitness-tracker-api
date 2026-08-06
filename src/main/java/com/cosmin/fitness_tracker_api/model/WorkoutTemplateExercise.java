@@ -3,6 +3,7 @@ package com.cosmin.fitness_tracker_api.model;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +35,7 @@ public class WorkoutTemplateExercise {
             orphanRemoval = true
     )
     @OrderBy("setNumber ASC")
+    @BatchSize(size = 50)
     private List<WorkoutTemplateSet> templateSets = new ArrayList<>();
 
     public WorkoutTemplateExercise() {

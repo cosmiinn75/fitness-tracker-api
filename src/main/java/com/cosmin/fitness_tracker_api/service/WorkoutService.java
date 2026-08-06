@@ -8,16 +8,16 @@ import com.cosmin.fitness_tracker_api.model.*;
 import com.cosmin.fitness_tracker_api.repository.*;
 import com.cosmin.fitness_tracker_api.security.CurrentUserProvider;
 import org.jspecify.annotations.NonNull;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class WorkoutService {
@@ -93,8 +93,7 @@ public class WorkoutService {
     }
 
     @Transactional(readOnly = true)
-    public PagedResponse<WorkoutResponse>
-    getAllWorkoutsFiltered(
+    public PagedResponse<WorkoutResponse> getAllWorkoutsFiltered(
             Integer page,
             Integer size,
             String name,
@@ -118,27 +117,79 @@ public class WorkoutService {
                         ? null
                         : name.trim();
 
-        Pageable pageable = PageRequest.of(
-                page,
-                size,
-                Sort.by(
-                        Sort.Direction.DESC,
-                        "date"
-                )
-        );
 
-        Page<WorkoutResponse> responses =
+        Pageable pageable =
+                PageRequest.of(page, size);
+
+        Page<Long> idPage =
+                workoutRepository.findFilteredPageIds(
+                        currentUsername,
+                        normalizedName,
+                        startDate,
+                        endDate,
+                        pageable
+                );
+
+        List<Long> ids =
+                idPage.getContent();
+
+
+        if (ids.isEmpty()) {
+            Page<WorkoutResponse> emptyPage =
+                    new PageImpl<>(
+                            List.of(),
+                            pageable,
+                            idPage.getTotalElements()
+                    );
+
+            return PagedResponse.from(emptyPage);
+        }
+
+        List<Workout> workouts =
                 workoutRepository
-                        .findFilteredWorkouts(
-                                currentUsername,
-                                normalizedName,
-                                startDate,
-                                endDate,
-                                pageable
-                        )
-                        .map(workoutMapper::toResponse);
+                        .findDetailedByIdsAndUserUsername(
+                                ids,
+                                currentUsername
+                        );
 
-        return PagedResponse.from(responses);
+        Map<Long, Workout> workoutsById =
+                workouts.stream()
+                        .collect(
+                                Collectors.toMap(
+                                        Workout::getId,
+                                        Function.identity()
+                                )
+                        );
+
+
+        List<WorkoutResponse> workoutResponses =
+                ids.stream()
+                        .map(id -> {
+                            Workout workout =
+                                    workoutsById.get(id);
+
+                            if (workout == null) {
+                                throw new IllegalStateException(
+                                        "Workout with id "
+                                                + id
+                                                + " was not loaded"
+                                );
+                            }
+
+                            return workoutMapper.toResponse(
+                                    workout
+                            );
+                        })
+                        .toList();
+
+        Page<WorkoutResponse> responsePage =
+                new PageImpl<>(
+                        workoutResponses,
+                        pageable,
+                        idPage.getTotalElements()
+                );
+
+        return PagedResponse.from(responsePage);
     }
 
     @Transactional(readOnly = true)
@@ -148,7 +199,7 @@ public class WorkoutService {
 
         Workout workout =
                 workoutRepository
-                        .findByIdAndUserUsername(
+                        .findDetailedByIdAndUserUsername(
                                 id,
                                 currentUsername
                         )
@@ -191,7 +242,7 @@ public class WorkoutService {
 
         Workout workout =
                 workoutRepository
-                        .findByIdAndUserUsername(
+                        .findDetailedByIdAndUserUsername(
                                 id,
                                 currentUsername
                         )
@@ -231,7 +282,7 @@ public class WorkoutService {
 
         Workout workout =
                 workoutRepository
-                        .findByIdAndUserUsername(
+                        .findDetailedByIdAndUserUsername(
                                 id,
                                 currentUsername
                         )
@@ -273,7 +324,7 @@ public class WorkoutService {
 
         Workout workout =
                 workoutRepository
-                        .findByIdAndUserUsername(
+                        .findDetailedByIdAndUserUsername(
                                 workoutId,
                                 currentUsername
                         )
@@ -327,7 +378,7 @@ public class WorkoutService {
 
         Workout workout =
                 workoutRepository
-                        .findByIdAndUserUsername(
+                        .findDetailedByIdAndUserUsername(
                                 workoutId,
                                 currentUsername
                         )
@@ -382,7 +433,7 @@ public class WorkoutService {
 
         Workout workout =
                 workoutRepository
-                        .findByIdAndUserUsername(
+                        .findDetailedByIdAndUserUsername(
                                 workoutId,
                                 currentUsername
                         )
@@ -435,7 +486,7 @@ public class WorkoutService {
 
         Workout workout =
                 workoutRepository
-                        .findByIdAndUserUsername(
+                        .findDetailedByIdAndUserUsername(
                                 workoutId,
                                 currentUsername
                         )
@@ -483,7 +534,7 @@ public class WorkoutService {
 
         Workout workout =
                 workoutRepository
-                        .findByIdAndUserUsername(
+                        .findDetailedByIdAndUserUsername(
                                 workoutId,
                                 currentUsername
                         )
@@ -535,7 +586,7 @@ public class WorkoutService {
 
         Workout workout =
                 workoutRepository
-                        .findByIdAndUserUsername(
+                        .findDetailedByIdAndUserUsername(
                                 workoutId,
                                 currentUsername
                         )
@@ -631,7 +682,7 @@ public class WorkoutService {
 
         Workout workoutToDuplicate =
                 workoutRepository
-                        .findByIdAndUserUsername(
+                        .findDetailedByIdAndUserUsername(
                                 workoutId,
                                 username
                         )

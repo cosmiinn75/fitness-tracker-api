@@ -288,6 +288,10 @@ public class WorkoutServiceTest {
 
     @Test
     void getAllWorkouts_ShouldReturnCurrentUserWorkouts() {
+
+        when(currentUserProvider.getCurrentUsername())
+                .thenReturn("cosmin");
+
         User user = new User();
         user.setId(1L);
         user.setUsername("cosmin");
@@ -295,9 +299,13 @@ public class WorkoutServiceTest {
         Workout workout = new Workout();
         workout.setId(1L);
         workout.setWorkoutName("push");
-        workout.setDate(LocalDate.of(2025, 2, 10));
+        workout.setDate(
+                LocalDate.of(2025, 2, 10)
+        );
         workout.setUser(user);
-        workout.setWorkoutExercises(new ArrayList<>());
+        workout.setWorkoutExercises(
+                new ArrayList<>()
+        );
 
         int page = 0;
         int size = 10;
@@ -310,29 +318,41 @@ public class WorkoutServiceTest {
         LocalDate endDate =
                 LocalDate.of(2025, 3, 11);
 
+
         Pageable pageable =
                 PageRequest.of(
                         page,
-                        size,
-                        Sort.by("date").descending()
+                        size
                 );
 
-        Page<Workout> workoutPage =
+
+        Page<Long> idPage =
                 new PageImpl<>(
-                        List.of(workout),
+                        List.of(1L),
                         pageable,
                         1
                 );
 
         when(
-                workoutRepository.findFilteredWorkouts(
+                workoutRepository.findFilteredPageIds(
                         "cosmin",
                         name,
                         startDate,
                         endDate,
                         pageable
                 )
-        ).thenReturn(workoutPage);
+        ).thenReturn(idPage);
+
+
+        when(
+                workoutRepository
+                        .findDetailedByIdsAndUserUsername(
+                                List.of(1L),
+                                "cosmin"
+                        )
+        ).thenReturn(
+                List.of(workout)
+        );
 
         PagedResponse<WorkoutResponse> response =
                 workoutService.getAllWorkoutsFiltered(
@@ -344,13 +364,29 @@ public class WorkoutServiceTest {
                 );
 
         assertNotNull(response);
-        assertEquals(1, response.content().size());
+
+        assertEquals(
+                1,
+                response.content().size()
+        );
+
+        assertEquals(
+                1L,
+                response.totalElements()
+        );
 
         WorkoutResponse workoutResponse =
                 response.content().getFirst();
 
-        assertEquals(1L, workoutResponse.id());
-        assertEquals("push", workoutResponse.workoutName());
+        assertEquals(
+                1L,
+                workoutResponse.id()
+        );
+
+        assertEquals(
+                "push",
+                workoutResponse.workoutName()
+        );
 
         assertEquals(
                 LocalDate.of(2025, 2, 10),
@@ -358,16 +394,27 @@ public class WorkoutServiceTest {
         );
 
         assertTrue(
-                workoutResponse.exerciseResponses().isEmpty()
+                workoutResponse
+                        .exerciseResponses()
+                        .isEmpty()
         );
 
+        verify(currentUserProvider)
+                .getCurrentUsername();
+
         verify(workoutRepository)
-                .findFilteredWorkouts(
+                .findFilteredPageIds(
                         "cosmin",
                         name,
                         startDate,
                         endDate,
                         pageable
+                );
+
+        verify(workoutRepository)
+                .findDetailedByIdsAndUserUsername(
+                        List.of(1L),
+                        "cosmin"
                 );
 
         verifyNoInteractions(
@@ -462,7 +509,7 @@ public class WorkoutServiceTest {
         exerciseSet.setWorkoutExercise(workoutExercise);
 
         when(
-                workoutRepository.findByIdAndUserUsername(
+                workoutRepository.findDetailedByIdAndUserUsername(
                         workoutId,
                         "cosmin"
                 )
@@ -497,7 +544,7 @@ public class WorkoutServiceTest {
         assertEquals(9, responseSet.rir());
 
         verify(workoutRepository)
-                .findByIdAndUserUsername(
+                .findDetailedByIdAndUserUsername(
                         workoutId,
                         "cosmin"
                 );
@@ -580,7 +627,7 @@ public class WorkoutServiceTest {
         );
 
         when(
-                workoutRepository.findByIdAndUserUsername(
+                workoutRepository.findDetailedByIdAndUserUsername(
                         workoutId,
                         "cosmin"
                 )
@@ -645,7 +692,7 @@ public class WorkoutServiceTest {
         );
 
         verify(workoutRepository)
-                .findByIdAndUserUsername(
+                .findDetailedByIdAndUserUsername(
                         workoutId,
                         "cosmin"
                 );
@@ -728,7 +775,7 @@ public class WorkoutServiceTest {
         );
 
         when(
-                workoutRepository.findByIdAndUserUsername(
+                workoutRepository.findDetailedByIdAndUserUsername(
                         workoutId,
                         "cosmin"
                 )
@@ -809,7 +856,7 @@ public class WorkoutServiceTest {
         assertNotEquals(workout.getId(), response.id());
 
         verify(workoutRepository)
-                .findByIdAndUserUsername(
+                .findDetailedByIdAndUserUsername(
                         workoutId,
                         "cosmin"
                 );
@@ -846,7 +893,7 @@ public class WorkoutServiceTest {
                 );
 
         when(
-                workoutRepository.findByIdAndUserUsername(
+                workoutRepository.findDetailedByIdAndUserUsername(
                         workoutId,
                         "cosmin"
                 )
@@ -861,7 +908,7 @@ public class WorkoutServiceTest {
         );
 
         verify(workoutRepository)
-                .findByIdAndUserUsername(
+                .findDetailedByIdAndUserUsername(
                         workoutId,
                         "cosmin"
                 );

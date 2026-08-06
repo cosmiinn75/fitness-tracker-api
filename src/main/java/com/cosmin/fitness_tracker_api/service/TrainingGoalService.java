@@ -91,7 +91,7 @@ public class TrainingGoalService {
 
         String username = currentUserProvider.getCurrentUsername();
         Pageable pageable = PageRequest.of(page, size);
-        Page<TrainingGoalResponse> trainingGoalPage = trainingGoalRepository.findByUserUsernameOrderByIdAsc(username,pageable)
+        Page<TrainingGoalResponse> trainingGoalPage = trainingGoalRepository.findPageWithExerciseDefinitionByUserUsername(username,pageable)
                 .map(trainingGoalMapper::toResponse);
         return PagedResponse.from(trainingGoalPage);
     }
