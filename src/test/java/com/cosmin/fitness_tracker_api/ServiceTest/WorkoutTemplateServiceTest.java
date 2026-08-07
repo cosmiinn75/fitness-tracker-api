@@ -377,7 +377,7 @@ public class WorkoutTemplateServiceTest {
     void getTemplateById_shouldThrowWhenTemplateDoesNotBelongToUser() {
 
 
-        when(workoutTemplateRepository.findByIdAndUserUsername(
+        when(workoutTemplateRepository.findDetailedByIdAndUserUsername(
                 10L,
                 "cosmin"
         )).thenReturn(Optional.empty());
@@ -388,7 +388,7 @@ public class WorkoutTemplateServiceTest {
         );
 
         verify(workoutTemplateRepository)
-                .findByIdAndUserUsername(10L, "cosmin");
+                .findDetailedByIdAndUserUsername(10L, "cosmin");
 
         verifyNoInteractions(
                 workoutTemplateExerciseRepository,
@@ -453,7 +453,7 @@ public class WorkoutTemplateServiceTest {
         template.setTemplateExercises(List.of(templateExercise));
         templateExercise.setTemplateSets(List.of(templateSet));
 
-        when(workoutTemplateRepository.findByIdAndUserUsername(
+        when(workoutTemplateRepository.findDetailedByIdAndUserUsername(
                 5L,
                 "cosmin"
         )).thenReturn(Optional.of(template));

@@ -92,7 +92,7 @@
 
             workout.setWorkoutExercises(List.of(benchPress, lateralRaise));
 
-            when(workoutRepository.findByIdAndUserUsername(workoutId, "cosmin"))
+            when(workoutRepository.findDetailedByIdAndUserUsername(workoutId, "cosmin"))
                     .thenReturn(Optional.of(workout));
 
             WorkoutVolumeResponse response =
@@ -102,7 +102,7 @@
             assertEquals(1450.0, response.totalVolume(), 0.001);
 
             verify(workoutRepository)
-                    .findByIdAndUserUsername(workoutId, "cosmin");
+                    .findDetailedByIdAndUserUsername(workoutId, "cosmin");
         }
 
         private static @NonNull WorkoutExercise getWorkoutExercise(Workout workout) {
@@ -139,14 +139,14 @@
 
             Long workoutId = 1L;
 
-            when(workoutRepository.findByIdAndUserUsername(workoutId, "cosmin"))
+            when(workoutRepository.findDetailedByIdAndUserUsername(workoutId, "cosmin"))
                     .thenReturn(Optional.empty());
 
 
             assertThrows(WorkoutNotFoundException.class,
                     () -> progressService.getWorkoutVolumeById(workoutId));
 
-            verify(workoutRepository).findByIdAndUserUsername(workoutId, "cosmin");
+            verify(workoutRepository).findDetailedByIdAndUserUsername(workoutId, "cosmin");
         }
 
         @Test

@@ -1,11 +1,6 @@
 package com.cosmin.fitness_tracker_api.service;
 
-import com.cosmin.fitness_tracker_api.DTO.PagedResponse;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutRequest;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutTemplateExerciseRequest;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutTemplateRequest;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutTemplateResponse;
-import com.cosmin.fitness_tracker_api.DTO.WorkoutTemplateSetRequest;
+import com.cosmin.fitness_tracker_api.DTO.*;
 import com.cosmin.fitness_tracker_api.Enum.ExerciseType;
 import com.cosmin.fitness_tracker_api.exception.DuplicateExerciseDefinitionException;
 import com.cosmin.fitness_tracker_api.exception.ExerciseDefinitionNotFoundException;
@@ -25,16 +20,16 @@ import com.cosmin.fitness_tracker_api.repository.WorkoutTemplateRepository;
 import com.cosmin.fitness_tracker_api.repository.WorkoutTemplateSetRepository;
 import com.cosmin.fitness_tracker_api.security.CurrentUserProvider;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class WorkoutTemplateService {
@@ -131,7 +126,7 @@ public class WorkoutTemplateService {
 
         WorkoutTemplate template =
                 workoutTemplateRepository
-                        .findByIdAndUserUsername(
+                        .findDetailedByIdAndUserUsername(
                                 templateId,
                                 username
                         )
@@ -157,13 +152,44 @@ public class WorkoutTemplateService {
         Pageable pageable =
                 PageRequest.of(page, size);
 
-        Page<WorkoutTemplateResponse> responses =
-                workoutTemplateRepository
-                        .findByUserUsername(
-                                username,
-                                pageable
-                        )
-                        .map(workoutTemplateMapper::toResponse);
+        Page<Long> idPage = workoutTemplateRepository.findPageIdsByUsername(username, pageable);
+
+        List<Long> ids = idPage.getContent();
+
+        if(ids.isEmpty()){
+            Page<WorkoutTemplateResponse> emptyPage = new PageImpl<>(
+                    List.of(),
+                    pageable,
+                    idPage.getTotalElements()
+            );
+            return PagedResponse.from(emptyPage);
+        }
+
+        List<WorkoutTemplate> workoutTemplates = workoutTemplateRepository.findDetailedByIdsAndUserUsername(ids, username);
+
+        Map<Long,WorkoutTemplate> templatesById = workoutTemplates
+                .stream()
+                .collect(Collectors.toMap(
+                        WorkoutTemplate::getId,
+                        Function.identity()
+                ));
+
+        List<WorkoutTemplateResponse> response =
+                    ids.stream()
+                            .map(id -> {
+                                WorkoutTemplate template = templatesById.get(id);
+                                if(template == null){
+                                    throw new IllegalStateException("Workout template with id " + id + " was not loaded");
+                                }
+                                return  workoutTemplateMapper.toResponse(template);
+                            })
+                            .toList();
+
+        Page<WorkoutTemplateResponse> responses = new PageImpl<>(
+                response,
+                pageable,
+                idPage.getTotalElements()
+        );
 
         return PagedResponse.from(responses);
     }
@@ -199,7 +225,7 @@ public class WorkoutTemplateService {
 
         WorkoutTemplate workoutTemplate =
                 workoutTemplateRepository
-                        .findByIdAndUserUsername(
+                        .findDetailedByIdAndUserUsername(
                                 templateId,
                                 username
                         )

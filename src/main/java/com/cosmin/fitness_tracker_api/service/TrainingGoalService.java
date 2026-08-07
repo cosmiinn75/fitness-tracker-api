@@ -19,6 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class TrainingGoalService {
@@ -91,7 +95,7 @@ public class TrainingGoalService {
 
         String username = currentUserProvider.getCurrentUsername();
         Pageable pageable = PageRequest.of(page, size);
-        Page<TrainingGoalResponse> trainingGoalPage = trainingGoalRepository.findByUserUsernameOrderByIdAsc(username,pageable)
+        Page<TrainingGoalResponse> trainingGoalPage = trainingGoalRepository.findPageWithExerciseDefinitionByUserUsername(username,pageable)
                 .map(trainingGoalMapper::toResponse);
         return PagedResponse.from(trainingGoalPage);
     }
@@ -118,45 +122,69 @@ public class TrainingGoalService {
 
 
     @Transactional
-    public int completeGoalsFromWorkout(Workout workout){
-
+    public int completeGoalsFromWorkout(Workout workout) {
         String username = currentUserProvider.getCurrentUsername();
         LocalDate workoutDate = workout.getDate();
+
+        Set<Long> exerciseDefinitionIds = workout.getWorkoutExercises()
+                .stream()
+                .map(workoutExercise -> workoutExercise.getExerciseDefinition().getId())
+                .collect(Collectors.toSet());
+
+        if (exerciseDefinitionIds.isEmpty()) {
+            return 0;
+        }
+
+        Map<Long, TrainingGoal> goalsByExerciseDefinitionId =
+                trainingGoalRepository
+                        .findByUserUsernameAndExerciseDefinitionIdInAndStatus(
+                                username,
+                                exerciseDefinitionIds,
+                                Status.ACTIVE
+                        )
+                        .stream()
+                        .collect(Collectors.toMap(
+                                trainingGoal -> trainingGoal.getExerciseDefinition().getId(),
+                                Function.identity()
+                        ));
+
         int goalsCompleted = 0;
-        for(WorkoutExercise workoutExercise : workout.getWorkoutExercises()){
-            ExerciseDefinition exerciseDefinition = workoutExercise.getExerciseDefinition();
 
-            TrainingGoal trainingGoal = trainingGoalRepository.findByUserUsernameAndExerciseDefinitionIdAndStatus(
-                    username, exerciseDefinition.getId(),Status.ACTIVE)
-                    .orElse(null);
+        for (WorkoutExercise workoutExercise : workout.getWorkoutExercises()) {
+            Long exerciseDefinitionId =
+                    workoutExercise.getExerciseDefinition().getId();
 
-            if(trainingGoal == null){
+            TrainingGoal trainingGoal =
+                    goalsByExerciseDefinitionId.get(exerciseDefinitionId);
+
+            if (trainingGoal == null) {
                 continue;
             }
 
-                if(trainingGoal.getTargetDate().isBefore(workoutDate)){
-                    continue;
-                }
-                if(workoutDate.isBefore(trainingGoal.getCreatedAt())){
-                    continue;
-                }
+            if (trainingGoal.getTargetDate().isBefore(workoutDate)) {
+                continue;
+            }
 
-                boolean goalReached = workoutExercise.getExerciseSets()
-                        .stream()
-                        .anyMatch(set -> set.getWeight() >= trainingGoal.getTargetWeight()
-                        && set.getReps() >= trainingGoal.getTargetReps());
+            if (workoutDate.isBefore(trainingGoal.getCreatedAt())) {
+                continue;
+            }
 
-                if(goalReached){
-                    trainingGoal.setStatus(Status.COMPLETED);
-                    goalsCompleted++;
-                    trainingGoalRepository.save(trainingGoal);
-                }
+            boolean goalReached = workoutExercise.getExerciseSets()
+                    .stream()
+                    .anyMatch(set ->
+                            set.getWeight() >= trainingGoal.getTargetWeight()
+                                    && set.getReps() >= trainingGoal.getTargetReps()
+                    );
 
-
+            if (goalReached) {
+                trainingGoal.setStatus(Status.COMPLETED);
+                goalsCompleted++;
+                goalsByExerciseDefinitionId.remove(exerciseDefinitionId);
+            }
         }
+
         return goalsCompleted;
     }
-
 
 
 

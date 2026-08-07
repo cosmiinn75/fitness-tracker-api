@@ -32,6 +32,7 @@
     import java.time.LocalDate;
     import java.util.List;
     import java.util.Optional;
+    import java.util.Set;
 
     import static org.junit.jupiter.api.Assertions.assertEquals;
     import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -238,7 +239,7 @@
                     2
             );
 
-            when(trainingGoalRepository.findByUserUsernameOrderByIdAsc("cosmin",pageable)).thenReturn(trainingGoalPage);
+            when(trainingGoalRepository.findPageWithExerciseDefinitionByUserUsername("cosmin",pageable)).thenReturn(trainingGoalPage);
 
             PagedResponse<TrainingGoalResponse> response = trainingGoalService.getTrainingGoals(page,size);
 
@@ -258,7 +259,7 @@
             assertEquals(100.00,response2.targetWeight());
 
 
-            verify(trainingGoalRepository).findByUserUsernameOrderByIdAsc("cosmin",pageable);
+            verify(trainingGoalRepository).findPageWithExerciseDefinitionByUserUsername("cosmin",pageable);
         }
 
         @Test
@@ -315,8 +316,6 @@
 
         @Test
         void completeGoalsFromWorkout_WhenOneSetReachesBothTargets_ShouldCompleteGoal() {
-
-
             ExerciseDefinition exerciseDefinition = exerciseDefinition(1L);
             TrainingGoal trainingGoal = activeGoal(exerciseDefinition);
 
@@ -327,12 +326,12 @@
             );
 
             when(trainingGoalRepository
-                    .findByUserUsernameAndExerciseDefinitionIdAndStatus(
+                    .findByUserUsernameAndExerciseDefinitionIdInAndStatus(
                             "cosmin",
-                            1L,
+                            Set.of(1L),
                             Status.ACTIVE
                     ))
-                    .thenReturn(Optional.of(trainingGoal));
+                    .thenReturn(List.of(trainingGoal));
 
             int goalsCompleted =
                     trainingGoalService.completeGoalsFromWorkout(workout);
@@ -340,13 +339,19 @@
             assertEquals(1, goalsCompleted);
             assertEquals(Status.COMPLETED, trainingGoal.getStatus());
 
-            verify(trainingGoalRepository).save(trainingGoal);
+            verify(trainingGoalRepository)
+                    .findByUserUsernameAndExerciseDefinitionIdInAndStatus(
+                            "cosmin",
+                            Set.of(1L),
+                            Status.ACTIVE
+                    );
+
+            verify(trainingGoalRepository, never())
+                    .save(any(TrainingGoal.class));
         }
 
         @Test
         void completeGoalsFromWorkout_WhenTargetsAreReachedByDifferentSets_ShouldNotCompleteGoal() {
-
-
             ExerciseDefinition exerciseDefinition = exerciseDefinition(1L);
             TrainingGoal trainingGoal = activeGoal(exerciseDefinition);
 
@@ -358,12 +363,12 @@
             );
 
             when(trainingGoalRepository
-                    .findByUserUsernameAndExerciseDefinitionIdAndStatus(
+                    .findByUserUsernameAndExerciseDefinitionIdInAndStatus(
                             "cosmin",
-                            1L,
+                            Set.of(1L),
                             Status.ACTIVE
                     ))
-                    .thenReturn(Optional.of(trainingGoal));
+                    .thenReturn(List.of(trainingGoal));
 
             int goalsCompleted =
                     trainingGoalService.completeGoalsFromWorkout(workout);
@@ -371,17 +376,21 @@
             assertEquals(0, goalsCompleted);
             assertEquals(Status.ACTIVE, trainingGoal.getStatus());
 
+            verify(trainingGoalRepository)
+                    .findByUserUsernameAndExerciseDefinitionIdInAndStatus(
+                            "cosmin",
+                            Set.of(1L),
+                            Status.ACTIVE
+                    );
+
             verify(trainingGoalRepository, never())
                     .save(any(TrainingGoal.class));
         }
 
         @Test
         void completeGoalsFromWorkout_WhenWorkoutPredatesGoal_ShouldNotCompleteGoal() {
-
-
             ExerciseDefinition exerciseDefinition = exerciseDefinition(1L);
             TrainingGoal trainingGoal = activeGoal(exerciseDefinition);
-
             trainingGoal.setCreatedAt(LocalDate.of(2026, 7, 25));
 
             Workout workout = workout(
@@ -391,18 +400,25 @@
             );
 
             when(trainingGoalRepository
-                    .findByUserUsernameAndExerciseDefinitionIdAndStatus(
+                    .findByUserUsernameAndExerciseDefinitionIdInAndStatus(
                             "cosmin",
-                            1L,
+                            Set.of(1L),
                             Status.ACTIVE
                     ))
-                    .thenReturn(Optional.of(trainingGoal));
+                    .thenReturn(List.of(trainingGoal));
 
             int goalsCompleted =
                     trainingGoalService.completeGoalsFromWorkout(workout);
 
             assertEquals(0, goalsCompleted);
             assertEquals(Status.ACTIVE, trainingGoal.getStatus());
+
+            verify(trainingGoalRepository)
+                    .findByUserUsernameAndExerciseDefinitionIdInAndStatus(
+                            "cosmin",
+                            Set.of(1L),
+                            Status.ACTIVE
+                    );
 
             verify(trainingGoalRepository, never())
                     .save(any(TrainingGoal.class));
