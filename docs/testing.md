@@ -1,6 +1,6 @@
 # Testing and Continuous Integration
 
-[â† Back to README](../README.md)
+[← Back to README](../README.md)
 
 This document describes the automated testing strategy, test organization, MySQL Testcontainers setup, mapper-testing approach, query-count regression tests, and GitHub Actions pipeline of the Fitness Tracker API.
 
@@ -80,32 +80,32 @@ Integration tests use Docker through Testcontainers. Docker must be running befo
 
 ~~~text
 src/test/
-â”œâ”€â”€ java/com/cosmin/fitness_tracker_api/
-â”‚   â”œâ”€â”€ ControllerTest/
-â”‚   â”‚   â”œâ”€â”€ AuthControllerTest.java
-â”‚   â”‚   â”œâ”€â”€ ExerciseDefinitionControllerTest.java
-â”‚   â”‚   â”œâ”€â”€ ProgressControllerTest.java
-â”‚   â”‚   â”œâ”€â”€ TrainingGoalControllerTest.java
-â”‚   â”‚   â””â”€â”€ WorkoutControllerTest.java
-â”‚   â”œâ”€â”€ IntegrationTest/
-â”‚   â”‚   â”œâ”€â”€ AbstractIntegrationTest.java
-â”‚   â”‚   â”œâ”€â”€ AuthIntegrationTest.java
-â”‚   â”‚   â”œâ”€â”€ ExerciseDefinitionIntegrationTest.java
-â”‚   â”‚   â”œâ”€â”€ PersonalRecordRepositoryIntegrationTest.java
-â”‚   â”‚   â”œâ”€â”€ TestcontainersConfiguration.java
-â”‚   â”‚   â”œâ”€â”€ TrainingGoalQueryCountIntegrationTest.java
-â”‚   â”‚   â”œâ”€â”€ WorkoutIntegrationTest.java
-â”‚   â”‚   â”œâ”€â”€ WorkoutQueryCountIntegrationTest.java
-â”‚   â”‚   â””â”€â”€ WorkoutTemplateQueryCountIntegrationTest.java
-â”‚   â”œâ”€â”€ ServiceTest/
-â”‚   â”‚   â”œâ”€â”€ AuthServiceTest.java
-â”‚   â”‚   â”œâ”€â”€ ProgressServiceTest.java
-â”‚   â”‚   â”œâ”€â”€ TrainingGoalServiceTest.java
-â”‚   â”‚   â”œâ”€â”€ WorkoutServiceTest.java
-â”‚   â”‚   â””â”€â”€ WorkoutTemplateServiceTest.java
-â”‚   â””â”€â”€ FitnessTrackerApiApplicationTests.java
-â””â”€â”€ resources/
-    â””â”€â”€ application-test.properties
+├── java/com/cosmin/fitness_tracker_api/
+│   ├── ControllerTest/
+│   │   ├── AuthControllerTest.java
+│   │   ├── ExerciseDefinitionControllerTest.java
+│   │   ├── ProgressControllerTest.java
+│   │   ├── TrainingGoalControllerTest.java
+│   │   └── WorkoutControllerTest.java
+│   ├── IntegrationTest/
+│   │   ├── AbstractIntegrationTest.java
+│   │   ├── AuthIntegrationTest.java
+│   │   ├── ExerciseDefinitionIntegrationTest.java
+│   │   ├── PersonalRecordRepositoryIntegrationTest.java
+│   │   ├── TestcontainersConfiguration.java
+│   │   ├── TrainingGoalQueryCountIntegrationTest.java
+│   │   ├── WorkoutIntegrationTest.java
+│   │   ├── WorkoutQueryCountIntegrationTest.java
+│   │   └── WorkoutTemplateQueryCountIntegrationTest.java
+│   ├── ServiceTest/
+│   │   ├── AuthServiceTest.java
+│   │   ├── ProgressServiceTest.java
+│   │   ├── TrainingGoalServiceTest.java
+│   │   ├── WorkoutServiceTest.java
+│   │   └── WorkoutTemplateServiceTest.java
+│   └── FitnessTrackerApiApplicationTests.java
+└── resources/
+    └── application-test.properties
 ~~~
 
 ## Test Levels
@@ -336,7 +336,7 @@ Tests verify:
 The expected formula is:
 
 ~~~text
-volume = sum(weight Ã— repetitions)
+volume = sum(weight × repetitions)
 ~~~
 
 ### Personal Records
