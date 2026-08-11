@@ -8,6 +8,14 @@ The project is implemented as a modular monolith with a layered architecture and
 
 The backend foundation also includes centralized authenticated-user access, dedicated DTO mapper components, standardized API errors using Spring's `ProblemDetail`, Flyway database migrations, automated tests, Docker, health monitoring, and continuous integration.
 
+## Documentation
+
+Detailed project documentation is available in the following guides:
+
+- [Architecture and domain model](docs/architecture.md)
+- [Authentication and security](docs/security.md)
+- [Testing and continuous integration](docs/testing.md)
+
 ## Table of Contents
 
 - [Highlights](#highlights)
