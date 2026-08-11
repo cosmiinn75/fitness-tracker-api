@@ -4,7 +4,7 @@
 
 This document describes the internal structure, domain model, persistence strategy, and main design decisions of the Fitness Tracker API.
 
-The application is a modular monolith built with Java 26, Spring Boot 4.1, Spring Web MVC, Spring Security, Spring Data JPA, Hibernate, Flyway, and MySQL 8.
+The application is a modular monolith built with Java 25, Spring Boot 4.1, Spring Web MVC, Spring Security, Spring Data JPA, Hibernate, Flyway, and MySQL 8.
 
 ## Table of Contents
 

@@ -45,7 +45,7 @@
 		<url>https://github.com/cosmiinn75/fitness-tracker-api</url>
 	</scm>
 	<properties>
-		<java.version>26</java.version>
+		<java.version>25</java.version>
 	</properties>
 	<dependencies>
 		<dependency>

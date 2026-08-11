@@ -2,7 +2,7 @@
 
 [![Fitness Tracker CI](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml/badge.svg)](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml)
 
-A secure REST API for recording strength-training workouts and tracking long-term progress, built with **Java 26**, **Spring Boot 4.1**, and **MySQL 8**.
+A secure REST API for recording strength-training workouts and tracking long-term progress, built with **Java 25**, **Spring Boot 4.1**, and **MySQL 8**.
 
 The project is implemented as a modular monolith with a layered architecture and goes beyond basic CRUD operations. It includes JWT authentication with refresh-token rotation, global system exercises and user-owned custom exercises, nested workout management, reusable workout templates, progress analytics, paginated personal records powered by a native SQL window function, and a complete training-goal lifecycle with automatic completion and expiration.
 
@@ -328,24 +328,24 @@ Integration tests also reload persisted entity relationships when necessary, ens
 
 ## Tech Stack
 
-| Area | Technology |
-| --- | --- |
-| Language | Java 26 |
-| Framework | Spring Boot 4.1.0 |
-| Web | Spring Web MVC |
-| Security | Spring Security, JWT, BCrypt |
-| Persistence | Spring Data JPA, Hibernate |
-| Database | MySQL 8 |
-| Schema migrations | Flyway |
-| Validation | Jakarta Bean Validation |
-| Error responses | Spring `ProblemDetail` |
-| API documentation | Springdoc OpenAPI, Swagger UI |
-| Monitoring | Spring Boot Actuator |
-| Scheduling | Spring `@Scheduled` |
+| Area | Technology                                  |
+| --- |---------------------------------------------|
+| Language | Java 25                                     |
+| Framework | Spring Boot 4.1.0                           |
+| Web | Spring Web MVC                              |
+| Security | Spring Security, JWT, BCrypt                |
+| Persistence | Spring Data JPA, Hibernate                  |
+| Database | MySQL 8                                     |
+| Schema migrations | Flyway                                      |
+| Validation | Jakarta Bean Validation                     |
+| Error responses | Spring `ProblemDetail`                      |
+| API documentation | Springdoc OpenAPI, Swagger UI               |
+| Monitoring | Spring Boot Actuator                        |
+| Scheduling | Spring `@Scheduled`                         |
 | Testing | JUnit 5, Mockito, MockMvc, Spring Boot Test |
-| Build | Maven Wrapper |
-| Containers | Docker, Docker Compose |
-| CI | GitHub Actions |
+| Build | Maven Wrapper                               |
+| Containers | Docker, Docker Compose                      |
+| CI | GitHub Actions                              |
 
 ## Architecture
 
@@ -1389,7 +1389,7 @@ This permanently removes the database data stored in the Docker volume.
 
 ### Requirements
 
-- Java 26
+- Java 25
 - MySQL 8
 
 Create an empty database:
@@ -1616,7 +1616,7 @@ The pipeline:
 
 1. Checks out the repository.
 2. Starts a MySQL 8 service container.
-3. Configures Java 26.
+3. Configures Java 25.
 4. Restores the Maven dependency cache.
 5. Runs Flyway against the test database.
 6. Compiles the project.

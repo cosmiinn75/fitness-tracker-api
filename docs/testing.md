@@ -525,7 +525,7 @@ The GitHub Actions workflow runs for pushes and pull requests targeting `main`.
 The pipeline:
 
 1. Checks out the repository.
-2. Configures Java 26.
+2. Configures Java 25.
 3. Restores the Maven dependency cache.
 4. Makes Docker available to Testcontainers.
 5. Starts a MySQL 8 test container through the test configuration.
