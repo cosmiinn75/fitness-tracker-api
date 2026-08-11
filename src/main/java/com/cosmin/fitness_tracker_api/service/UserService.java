@@ -1,4 +1,4 @@
-package com.cosmin.fitness_tracker_api.security;
+package com.cosmin.fitness_tracker_api.service;
 
 import com.cosmin.fitness_tracker_api.DTO.ChangePasswordRequest;
 import com.cosmin.fitness_tracker_api.exception.InvalidCredentialsException;

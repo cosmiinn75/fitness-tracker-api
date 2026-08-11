@@ -1,7 +1,7 @@
 package com.cosmin.fitness_tracker_api.controller;
 
 import com.cosmin.fitness_tracker_api.DTO.ChangePasswordRequest;
-import com.cosmin.fitness_tracker_api.security.UserService;
+import com.cosmin.fitness_tracker_api.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;

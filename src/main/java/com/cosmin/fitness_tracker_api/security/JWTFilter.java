@@ -15,7 +15,7 @@ import java.util.Collections;
 
 
 @Component
-public class JWTFilter extends OncePerRequestFilter {
+public class  JWTFilter extends OncePerRequestFilter {
 
     private final JWTUtil jwtUtil;
 
