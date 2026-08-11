@@ -1,6 +1,6 @@
 # Authentication and Security
 
-[â† Back to README](../README.md)
+[← Back to README](../README.md)
 
 This document describes the authentication model, token lifecycle, authorization rules, ownership boundaries, validation behavior, secret management, and production-security expectations of the Fitness Tracker API.
 
@@ -132,9 +132,9 @@ The intended security property is:
 
 ~~~text
 one successful refresh
-â†’ old refresh token revoked
-â†’ new token pair issued
-â†’ old refresh token rejected on reuse
+→ old refresh token revoked
+→ new token pair issued
+→ old refresh token rejected on reuse
 ~~~
 
 Refresh-token persistence allows the API to invalidate a token before its normal expiration, which is not possible with a completely self-contained token that is never checked against server-side state.
@@ -294,8 +294,8 @@ Example:
 
 ~~~text
 User A requests User B's workout ID
-â†’ ownership-aware query returns no result
-â†’ API returns 404
+→ ownership-aware query returns no result
+→ API returns 404
 ~~~
 
 This avoids confirming the existence of another user's private resource.
