@@ -10,21 +10,39 @@
 	</parent>
 	<groupId>com.cosmin</groupId>
 	<artifactId>fitness-tracker-api</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
-	<url/>
+	<version>1.6.0-SNAPSHOT</version>
+
+	<name>Fitness Tracker API</name>
+	<description>
+		Secure REST API for strength-training tracking and progress analytics
+	</description>
+	<url>https://github.com/cosmiinn75/fitness-tracker-api</url>
+
 	<licenses>
-		<license/>
+		<license>
+			<name>MIT License</name>
+			<url>https://opensource.org/licenses/MIT</url>
+			<distribution>repo</distribution>
+		</license>
 	</licenses>
+
 	<developers>
-		<developer/>
+		<developer>
+			<id>cosmiinn75</id>
+			<name>Cosmin</name>
+			<url>https://github.com/cosmiinn75</url>
+		</developer>
 	</developers>
+
 	<scm>
-		<connection/>
-		<developerConnection/>
-		<tag/>
-		<url/>
+		<connection>
+			scm:git:https://github.com/cosmiinn75/fitness-tracker-api.git
+		</connection>
+		<developerConnection>
+			scm:git:ssh://git@github.com/cosmiinn75/fitness-tracker-api.git
+		</developerConnection>
+		<tag>HEAD</tag>
+		<url>https://github.com/cosmiinn75/fitness-tracker-api</url>
 	</scm>
 	<properties>
 		<java.version>26</java.version>
@@ -81,6 +99,8 @@
 			<artifactId>mysql-connector-j</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+
+
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
