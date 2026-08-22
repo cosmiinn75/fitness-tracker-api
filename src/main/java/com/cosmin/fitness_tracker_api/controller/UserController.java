@@ -1,6 +1,7 @@
 package com.cosmin.fitness_tracker_api.controller;
 
 import com.cosmin.fitness_tracker_api.DTO.ChangePasswordRequest;
+import com.cosmin.fitness_tracker_api.DTO.UserInfoResponse;
 import com.cosmin.fitness_tracker_api.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -9,10 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/users/me")
@@ -60,6 +58,25 @@ public class UserController {
     public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest changePasswordRequest) {
         userService.changePassword(changePasswordRequest);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Get user info",
+            description = "Get information about the authenticated user"
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Retrieved user info successfully"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication token is missing, invalid or expired"
+            )
+    })
+    @GetMapping
+    public UserInfoResponse getUserInfo(){
+         return userService.getUsersInfo();
     }
 
 }

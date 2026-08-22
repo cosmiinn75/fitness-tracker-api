@@ -1,32 +1,40 @@
 package com.cosmin.fitness_tracker_api.service;
 
 import com.cosmin.fitness_tracker_api.DTO.ChangePasswordRequest;
+import com.cosmin.fitness_tracker_api.DTO.UserInfoResponse;
 import com.cosmin.fitness_tracker_api.exception.InvalidCredentialsException;
-import com.cosmin.fitness_tracker_api.exception.UserNotAuthException;
+import com.cosmin.fitness_tracker_api.exception.UserNotFoundException;
 import com.cosmin.fitness_tracker_api.model.User;
 import com.cosmin.fitness_tracker_api.repository.UserRepository;
-import org.springframework.security.core.context.SecurityContextHolder;
+import com.cosmin.fitness_tracker_api.repository.WorkoutRepository;
+import com.cosmin.fitness_tracker_api.security.CurrentUserProvider;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class UserService {
+public  class UserService  {
 
     private final UserRepository userRepository;
+    private final CurrentUserProvider currentUserProvider;
 
     private final PasswordEncoder passwordEncoder;
+    private final WorkoutRepository workoutRepository;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+
+    public UserService(UserRepository userRepository, CurrentUserProvider currentUserProvider, PasswordEncoder passwordEncoder, WorkoutRepository workoutRepository) {
         this.userRepository = userRepository;
+        this.currentUserProvider = currentUserProvider;
         this.passwordEncoder = passwordEncoder;
+        this.workoutRepository = workoutRepository;
     }
-
 
     @Transactional
     public void changePassword(ChangePasswordRequest request) {
-        User loggedUser = userRepository.findByUsername(getCurrentUsername())
-                .orElseThrow(() -> new UserNotAuthException("User not authenticated"));
+        String username = currentUserProvider.getCurrentUsername();
+        User loggedUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
 
 
@@ -48,14 +56,21 @@ public class UserService {
 
     }
 
-    private String getCurrentUsername() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
+    @Transactional(readOnly = true)
+    public UserInfoResponse getUsersInfo(){
+        String username = currentUserProvider.getCurrentUsername();
 
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UserNotAuthException("User is not authenticated");
-        }
+        User loggedUser = userRepository.findByUsername(username).orElseThrow(() -> new UserNotFoundException("User not found"));
 
-        return authentication.getName();
+        long totalWorkouts = workoutRepository.countByUserUsername(username);
+
+        return new UserInfoResponse(
+                username,
+                loggedUser.getEmail(),
+                totalWorkouts
+        );
     }
+
+
 
 }
