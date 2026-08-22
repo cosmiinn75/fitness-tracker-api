@@ -54,14 +54,19 @@ The normal path of a protected request is:
 
 ~~~mermaid
 flowchart TD
-    A[API client] --> B[JWT security filter]
-    B --> C[Controller]
-    C --> D[Service]
-    D --> E[Repository]
-    E --> F[(MySQL)]
-    D --> G[Mapper]
-    G --> C
-    C --> A
+    A[API client] -->|HTTP request + JWT| B[JWT security filter]
+    B -->|Authorized request| C[Controller]
+    C -->|Calls| D[Service]
+    D -->|Query| E[Repository]
+    E -->|SQL| F[(MySQL)]
+
+    F -->|Rows| E
+    E -->|Entities| D
+    D -->|Entity| G[Mapper]
+    G -->|Response DTO| D
+    D -->|DTO| C
+    C -->|HTTP response| B
+    B -->|HTTP response| A
 ~~~
 
 1. The client sends an HTTP request and, for protected endpoints, a bearer access token.
