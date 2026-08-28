@@ -22,38 +22,67 @@ import java.util.Locale;
 public class ExerciseDefinitionService {
 
     private final ExerciseDefinitionRepository exerciseDefinitionRepository;
-
     private final UserRepository userRepository;
-
     private final CurrentUserProvider currentUserProvider;
-
     private final ExerciseDefinitionMapper exerciseDefinitionMapper;
+    private final ExerciseDefinitionCacheService exerciseDefinitionCacheService;
 
-    public ExerciseDefinitionService(ExerciseDefinitionRepository exerciseDefinitionRepository, UserRepository userRepository, CurrentUserProvider currentUserProvider, ExerciseDefinitionMapper exerciseDefinitionMapper) {
+    public ExerciseDefinitionService(
+            ExerciseDefinitionRepository exerciseDefinitionRepository,
+            UserRepository userRepository,
+            CurrentUserProvider currentUserProvider,
+            ExerciseDefinitionMapper exerciseDefinitionMapper,
+            ExerciseDefinitionCacheService exerciseDefinitionCacheService
+    ) {
         this.exerciseDefinitionRepository = exerciseDefinitionRepository;
         this.userRepository = userRepository;
         this.currentUserProvider = currentUserProvider;
         this.exerciseDefinitionMapper = exerciseDefinitionMapper;
+        this.exerciseDefinitionCacheService = exerciseDefinitionCacheService;
     }
 
     @Transactional
-    public ExerciseDefinitionResponse addExerciseDefinition(ExerciseDefinitionRequest request) {
+    public ExerciseDefinitionResponse addExerciseDefinition(
+            ExerciseDefinitionRequest request
+    ) {
         String username = currentUserProvider.getCurrentUsername();
+
         String cleanedName = request.exerciseName()
                 .strip()
                 .replaceAll("\\s+", " ");
-        String normalizedName = normalizeName(cleanedName);
-        User owner = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-        if (exerciseDefinitionRepository.existsByOwnerUsernameAndNormalizedName(username, normalizedName)
-        || exerciseDefinitionRepository.existsByExerciseTypeAndNormalizedName(ExerciseType.SYSTEM, normalizedName)) {
-            throw new NameAlreadyExistsException("Exercise name already exists");
+        String normalizedName = normalizeName(cleanedName);
+
+        User owner = userRepository.findByUsername(username)
+                .orElseThrow(() ->
+                        new UserNotFoundException("User not found")
+                );
+
+        boolean customExists =
+                exerciseDefinitionRepository
+                        .existsByOwnerUsernameAndNormalizedNameAndMuscleGroup(
+                                username,
+                                normalizedName,
+                                request.muscleGroup()
+                        );
+
+        boolean systemExists =
+                exerciseDefinitionRepository
+                        .existsByExerciseTypeAndNormalizedNameAndMuscleGroup(
+                                ExerciseType.SYSTEM,
+                                normalizedName,
+                                request.muscleGroup()
+                        );
+
+        if (customExists || systemExists) {
+            throw new NameAlreadyExistsException(
+                    "Exercise name already exists for this muscle group"
+            );
         }
 
+        ExerciseDefinition exerciseDefinition =
+                new ExerciseDefinition();
 
-
-        ExerciseDefinition exerciseDefinition = new ExerciseDefinition();
         exerciseDefinition.setName(cleanedName);
         exerciseDefinition.setMuscleGroup(request.muscleGroup());
         exerciseDefinition.setNormalizedName(normalizedName);
@@ -61,27 +90,33 @@ public class ExerciseDefinitionService {
         exerciseDefinition.setArchived(false);
         exerciseDefinition.setOwner(owner);
 
-        ExerciseDefinition savedExerciseDefinition = exerciseDefinitionRepository.save(exerciseDefinition);
+        ExerciseDefinition savedExerciseDefinition =
+                exerciseDefinitionRepository.save(exerciseDefinition);
 
-        return exerciseDefinitionMapper.toResponse(savedExerciseDefinition);
+        exerciseDefinitionCacheService.evictList(username);
+
+        return exerciseDefinitionMapper.toResponse(
+                savedExerciseDefinition
+        );
     }
 
     @Transactional(readOnly = true)
     public List<ExerciseDefinitionResponse> findAllExerciseDefinitions() {
         String username = currentUserProvider.getCurrentUsername();
-        return exerciseDefinitionRepository.findAllAccessible(username,ExerciseType.SYSTEM)
-                .stream()
-                .map(exerciseDefinitionMapper::toResponse)
-                .toList();
+
+        return exerciseDefinitionCacheService.findAll(username);
     }
 
     @Transactional(readOnly = true)
-    public ExerciseDefinitionResponse findExerciseDefinitionById(Long id) {
+    public ExerciseDefinitionResponse findExerciseDefinitionById(
+            Long id
+    ) {
         String username = currentUserProvider.getCurrentUsername();
-        ExerciseDefinition exerciseDefinition = exerciseDefinitionRepository.findByIdAccessible(id,username,ExerciseType.SYSTEM)
-                .orElseThrow(() -> new ExerciseDefinitionNotFoundException("Exercise definition not found"));
 
-        return exerciseDefinitionMapper.toResponse(exerciseDefinition);
+        return exerciseDefinitionCacheService.findById(
+                username,
+                id
+        );
     }
 
     @Transactional
@@ -110,21 +145,26 @@ public class ExerciseDefinitionService {
 
         String normalizedName = normalizeName(cleanedName);
 
-        if (!exerciseDefinition.getNormalizedName().equals(normalizedName)
-                && (
+        boolean customExists =
                 exerciseDefinitionRepository
-                        .existsByOwnerUsernameAndNormalizedName(
+                        .existsByOwnerUsernameAndNormalizedNameAndMuscleGroupAndIdNot(
                                 username,
-                                normalizedName
-                        )
-                        || exerciseDefinitionRepository
-                        .existsByExerciseTypeAndNormalizedName(
+                                normalizedName,
+                                request.muscleGroup(),
+                                id
+                        );
+
+        boolean systemExists =
+                exerciseDefinitionRepository
+                        .existsByExerciseTypeAndNormalizedNameAndMuscleGroup(
                                 ExerciseType.SYSTEM,
-                                normalizedName
-                        )
-        )) {
+                                normalizedName,
+                                request.muscleGroup()
+                        );
+
+        if (customExists || systemExists) {
             throw new NameAlreadyExistsException(
-                    "Exercise name already exists"
+                    "Exercise name already exists for this muscle group"
             );
         }
 
@@ -132,13 +172,18 @@ public class ExerciseDefinitionService {
         exerciseDefinition.setNormalizedName(normalizedName);
         exerciseDefinition.setMuscleGroup(request.muscleGroup());
 
-        return exerciseDefinitionMapper.toResponse(exerciseDefinition);
-    }
+        exerciseDefinitionCacheService
+                .evictListAndExercise(username, id);
 
+        return exerciseDefinitionMapper.toResponse(
+                exerciseDefinition
+        );
+    }
 
     @Transactional
     public void archiveExerciseDefinition(Long id) {
         String username = currentUserProvider.getCurrentUsername();
+
         ExerciseDefinition exerciseDefinition =
                 exerciseDefinitionRepository
                         .findByIdAndOwnerUsernameAndExerciseTypeAndArchivedFalse(
@@ -153,14 +198,14 @@ public class ExerciseDefinitionService {
                         );
 
         exerciseDefinition.setArchived(true);
-    }
 
+        exerciseDefinitionCacheService
+                .evictListAndExercise(username, id);
+    }
 
     private String normalizeName(String name) {
         return name.strip()
                 .replaceAll("\\s+", " ")
                 .toLowerCase(Locale.ROOT);
     }
-
-
 }
