@@ -174,7 +174,7 @@ class ExerciseDefinitionCacheIntegrationTest {
         )).thenReturn(List.of(exerciseDefinition));
 
 
-        // 1. Populăm cache-ul
+
         exerciseDefinitionCacheService.findAll(username);
 
         Cache cache =
@@ -184,7 +184,7 @@ class ExerciseDefinitionCacheIntegrationTest {
         assertNotNull(cache.get(username));
 
 
-        // 2. Curățăm istoricul mock-ului
+
         reset(exerciseDefinitionRepository);
 
 
@@ -194,15 +194,14 @@ class ExerciseDefinitionCacheIntegrationTest {
         )).thenReturn(List.of(exerciseDefinition));
 
 
-        // 3. Evict
+
         exerciseDefinitionCacheService.evictList(username);
 
 
-        // Cheia trebuie să fi dispărut
         assertNull(cache.get(username));
 
 
-        // 4. Acum trebuie să apeleze din nou repository-ul
+
         exerciseDefinitionCacheService.findAll(username);
 
 
