@@ -52,6 +52,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "401",
                     description = "Missing or invalid JWT token"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping
@@ -102,6 +106,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping("/{id}")
@@ -131,6 +139,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @DeleteMapping("/{id}")
@@ -161,6 +173,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PatchMapping("/{id}")
@@ -191,6 +207,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout or exercise definition not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PutMapping("/{id}")
@@ -221,6 +241,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Exercise definition not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PostMapping
@@ -251,6 +275,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout, exercise or set not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PatchMapping("/{workoutId}/exercises/{exerciseNumber}/sets/{setNumber}")
@@ -288,6 +316,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout, workout exercise or exercise definition not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PatchMapping("/{workoutId}/exercises/{exerciseNumber}")
@@ -323,6 +355,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout or workout exercise not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PostMapping("/{workoutId}/exercises/{exerciseNumber}/sets")
@@ -358,6 +394,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout, workout exercise or set not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @DeleteMapping("/{workoutId}/exercises/{exerciseNumber}/sets/{setNumber}")
@@ -394,6 +434,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout or exercise definition not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PostMapping("/{workoutId}/exercises")
@@ -427,6 +471,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout or workout exercise not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @DeleteMapping("/{workoutId}/exercises/{exerciseNumber}")
@@ -461,6 +509,10 @@ public class WorkoutController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PostMapping("/{workoutId}/duplicate")

@@ -47,6 +47,10 @@ public class ExerciseDefinitionController {
             @ApiResponse(
                     responseCode = "401",
                     description = "Missing or invalid JWT token"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping
@@ -74,6 +78,10 @@ public class ExerciseDefinitionController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Exercise definition not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping("/{id}")
@@ -103,6 +111,10 @@ public class ExerciseDefinitionController {
             @ApiResponse(
                     responseCode = "409",
                     description = "An exercise definition with the same name already exists"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PostMapping
@@ -139,6 +151,10 @@ public class ExerciseDefinitionController {
             @ApiResponse(
                     responseCode = "409",
                     description = "An exercise definition with the same name already exists"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PutMapping("/{id}")

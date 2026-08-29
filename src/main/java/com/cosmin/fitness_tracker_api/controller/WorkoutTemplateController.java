@@ -65,6 +65,10 @@ public class WorkoutTemplateController {
             @ApiResponse(
                     responseCode = "409",
                     description = "A template with the same name already exists"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PostMapping
@@ -98,6 +102,10 @@ public class WorkoutTemplateController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout template not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping("/{templateId}")
@@ -128,6 +136,10 @@ public class WorkoutTemplateController {
             @ApiResponse(
                     responseCode = "401",
                     description = "Missing or invalid JWT token"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping
@@ -168,6 +180,10 @@ public class WorkoutTemplateController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout template not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping("/{templateId}/workout-draft")
@@ -203,6 +219,10 @@ public class WorkoutTemplateController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout template not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @DeleteMapping("/{templateId}")

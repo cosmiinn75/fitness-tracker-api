@@ -52,6 +52,10 @@ public class UserController {
             @ApiResponse(
                     responseCode = "401",
                     description = "Authentication token is missing, invalid or expired"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PatchMapping("/password")
@@ -72,6 +76,10 @@ public class UserController {
             @ApiResponse(
                     responseCode = "401",
                     description = "Authentication token is missing, invalid or expired"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping

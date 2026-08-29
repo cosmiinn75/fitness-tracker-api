@@ -43,6 +43,10 @@ public class ProgressController {
             @ApiResponse(
                     responseCode = "401",
                     description = "Missing or invalid JWT token"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping("/weekly-volume")
@@ -62,6 +66,10 @@ public class ProgressController {
             @ApiResponse(
                     responseCode = "401",
                     description = "Missing or invalid JWT token"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping("/monthly-volume")
@@ -89,6 +97,10 @@ public class ProgressController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Workout not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping("/workouts/{workoutId}/volume")
@@ -118,6 +130,10 @@ public class ProgressController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Exercise definition or personal record not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping("/exercises/{exerciseDefinitionId}/personal-record")
@@ -146,6 +162,10 @@ public class ProgressController {
             @ApiResponse(
                     responseCode = "401",
                     description = "Missing or invalid JWT token"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping("/personal-records")
@@ -177,6 +197,10 @@ public class ProgressController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Exercise definition not found"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping("/exercises/{exerciseDefinitionId}/history")
@@ -208,6 +232,10 @@ public class ProgressController {
             @ApiResponse(
                     responseCode = "401",
                     description = "Missing or invalid JWT token"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping("/summary")

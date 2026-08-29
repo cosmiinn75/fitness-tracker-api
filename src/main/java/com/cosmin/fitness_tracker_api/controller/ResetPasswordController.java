@@ -47,6 +47,10 @@ public class ResetPasswordController {
                     @ApiResponse(
                             responseCode = "429",
                             description = "Too many requests. Please try again later"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Too many requests. Please try again later"
                     )
             }
     )
@@ -72,6 +76,10 @@ public class ResetPasswordController {
             @ApiResponse(
                     responseCode = "400",
                     description = "Invalid or expired token, or invalid password"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PostMapping("/reset-password")

@@ -68,6 +68,10 @@ public class TrainingGoalController {
             @ApiResponse(
                     responseCode = "409",
                     description = "An active training goal already exists for this exercise"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PostMapping
@@ -92,6 +96,10 @@ public class TrainingGoalController {
             @ApiResponse(
                     responseCode = "401",
                     description = "Authentication is required"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @GetMapping
@@ -134,6 +142,10 @@ public class TrainingGoalController {
             @ApiResponse(
                     responseCode = "409",
                     description = "The training goal cannot be cancelled because it is not active or has expired"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PatchMapping("/{trainingGoalId}/cancel")
