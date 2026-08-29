@@ -45,6 +45,7 @@ public class AuthenticatedRateLimitFilter extends OncePerRequestFilter {
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setContentType("text/plain");
             response.getWriter().write("Too many requests. Please try again later");
+            return;
         }
 
         filterChain.doFilter(request,response);
