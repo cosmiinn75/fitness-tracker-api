@@ -19,6 +19,7 @@ import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -26,8 +27,10 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.mysql.MySQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.time.Duration;
 import java.util.List;
 
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -46,6 +49,9 @@ class ExerciseDefinitionCacheIntegrationTest {
 
     @MockitoBean
     private ExerciseDefinitionRepository exerciseDefinitionRepository;
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
 
 
     @TestConfiguration(proxyBeanMethods = false)
@@ -77,14 +83,14 @@ class ExerciseDefinitionCacheIntegrationTest {
                 cacheManager.getCache("exerciseDefinitions");
 
         if (exerciseDefinitions != null) {
-            exerciseDefinitions.clear();
+            exerciseDefinitions.invalidate();
         }
 
         Cache exerciseDefinition =
                 cacheManager.getCache("exerciseDefinition");
 
         if (exerciseDefinition != null) {
-            exerciseDefinition.clear();
+            exerciseDefinition.invalidate();
         }
 
         reset(exerciseDefinitionRepository);
@@ -117,15 +123,22 @@ class ExerciseDefinitionCacheIntegrationTest {
                 List.of(exerciseDefinition)
         );
 
+        Cache cache =
+                cacheManager.getCache("exerciseDefinitions");
 
+        assertNotNull(cache);
 
         var firstResult =
                 exerciseDefinitionCacheService.findAll(username);
 
+        // Redis write poate fi async
+        await()
+                .atMost(Duration.ofSeconds(2))
+                .until(() -> cache.get(username) != null);
 
+        // acum știm sigur că valoarea este deja în Redis
         var secondResult =
                 exerciseDefinitionCacheService.findAll(username);
-
 
         assertEquals(1, firstResult.size());
 
@@ -139,7 +152,6 @@ class ExerciseDefinitionCacheIntegrationTest {
                 secondResult
         );
 
-
         verify(
                 exerciseDefinitionRepository,
                 times(1)
@@ -148,15 +160,7 @@ class ExerciseDefinitionCacheIntegrationTest {
                 ExerciseType.SYSTEM
         );
 
-
-        Cache cache =
-                cacheManager.getCache("exerciseDefinitions");
-
-        assertNotNull(cache);
-
-        assertNotNull(
-                cache.get(username)
-        );
+        assertNotNull(cache.get(username));
     }
 
 
@@ -168,46 +172,49 @@ class ExerciseDefinitionCacheIntegrationTest {
         ExerciseDefinition exerciseDefinition =
                 createExerciseDefinition();
 
-        when(exerciseDefinitionRepository.findAllAccessible(
-                username,
-                ExerciseType.SYSTEM
-        )).thenReturn(List.of(exerciseDefinition));
-
-
-
-        exerciseDefinitionCacheService.findAll(username);
+        when(
+                exerciseDefinitionRepository.findAllAccessible(
+                        username,
+                        ExerciseType.SYSTEM
+                )
+        ).thenReturn(List.of(exerciseDefinition));
 
         Cache cache =
                 cacheManager.getCache("exerciseDefinitions");
 
         assertNotNull(cache);
-        assertNotNull(cache.get(username));
-
-
-
-        reset(exerciseDefinitionRepository);
-
-
-        when(exerciseDefinitionRepository.findAllAccessible(
-                username,
-                ExerciseType.SYSTEM
-        )).thenReturn(List.of(exerciseDefinition));
-
-
-
-        exerciseDefinitionCacheService.evictList(username);
-
-
-        assertNull(cache.get(username));
-
-
 
         exerciseDefinitionCacheService.findAll(username);
 
+        await()
+                .atMost(Duration.ofSeconds(2))
+                .until(() -> cache.get(username) != null);
+
+        exerciseDefinitionCacheService.findAll(username);
 
         verify(
                 exerciseDefinitionRepository,
                 times(1)
+        ).findAllAccessible(
+                username,
+                ExerciseType.SYSTEM
+        );
+
+        exerciseDefinitionCacheService.evictList(username);
+
+        await()
+                .atMost(Duration.ofSeconds(2))
+                .until(() -> cache.get(username) == null);
+
+        exerciseDefinitionCacheService.findAll(username);
+
+        await()
+                .atMost(Duration.ofSeconds(2))
+                .until(() -> cache.get(username) != null);
+
+        verify(
+                exerciseDefinitionRepository,
+                times(2)
         ).findAllAccessible(
                 username,
                 ExerciseType.SYSTEM
