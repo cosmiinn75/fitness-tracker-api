@@ -91,4 +91,12 @@ public class SecurityConfig {
         return registration;
     }
 
+    @Bean
+    public FilterRegistrationBean<AuthenticatedRateLimitFilter> authenticatedRateLimitFilterFilterRegistrationBean(
+            AuthenticatedRateLimitFilter  authenticatedRateLimitFilter
+    ) {
+        FilterRegistrationBean<AuthenticatedRateLimitFilter> registration = new FilterRegistrationBean<>(authenticatedRateLimitFilter);
+        registration.setEnabled(false);
+        return registration;
+    }
 }

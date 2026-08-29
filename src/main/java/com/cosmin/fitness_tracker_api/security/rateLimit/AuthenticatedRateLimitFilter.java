@@ -16,11 +16,9 @@ import java.io.IOException;
 @Component
 public class AuthenticatedRateLimitFilter extends OncePerRequestFilter {
 
-    private final CurrentUserProvider currentUserProvider;
     private final RateLimitService rateLimitService;
 
-    public AuthenticatedRateLimitFilter(CurrentUserProvider currentUserProvider, RateLimitService rateLimitService) {
-        this.currentUserProvider = currentUserProvider;
+    public AuthenticatedRateLimitFilter(RateLimitService rateLimitService) {
         this.rateLimitService = rateLimitService;
     }
 
