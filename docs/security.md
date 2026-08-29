@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md)
 
-This document describes the authentication model, token lifecycle, authorization rules, ownership boundaries, validation behavior, secret management, and production-security expectations of the Fitness Tracker API.
+This document describes the authentication model, token lifecycle, authorization rules, ownership boundaries, Redis-backed rate limiting, validation behavior, secret management, and production-security expectations of the Fitness Tracker API.
 
 ## Table of Contents
 
@@ -16,6 +16,7 @@ This document describes the authentication model, token lifecycle, authorization
 - [Password Reset](#password-reset)
 - [Authenticated Password Change](#authenticated-password-change)
 - [Stateless Spring Security](#stateless-spring-security)
+- [Rate Limiting](#rate-limiting)
 - [Current-User Abstraction](#current-user-abstraction)
 - [Authorization and Resource Ownership](#authorization-and-resource-ownership)
 - [Exercise Access Rules](#exercise-access-rules)
@@ -36,6 +37,7 @@ The main security controls are:
 - Persistent refresh tokens stored in MySQL.
 - Refresh-token rotation and revocation.
 - A custom JWT filter for access-token validation.
+- Redis-backed Token Bucket rate limiting for selected public authentication routes and authenticated API requests.
 - Stateless Spring Security configuration.
 - Ownership-aware repository queries.
 - A centralized `CurrentUserProvider`.
@@ -66,7 +68,7 @@ The current public/protected boundary is:
 | Training-goal endpoints | Required | Owned training goals |
 | Workout-template endpoints | Required | Owned reusable templates |
 
-Although the authentication endpoints are publicly reachable, their operations still validate credentials or tokens before returning protected data.
+Although the authentication endpoints are publicly reachable, their operations still validate credentials or tokens before returning protected data. Selected high-risk public authentication operations are additionally rate-limited by client IP before JWT processing.
 
 ## Authentication Flow
 
@@ -89,17 +91,20 @@ sequenceDiagram
 The complete flow is:
 
 1. A user registers or logs in.
-2. The API validates the supplied data.
-3. The password is verified against its BCrypt hash.
-4. The API returns an access token and a refresh token.
-5. The client sends the access token in the `Authorization` header.
-6. The JWT filter validates the token and populates the Spring Security context.
-7. When the access token expires, the client submits the refresh token to `POST /api/auth/refresh`.
-8. The API validates the refresh token.
-9. The current refresh token is revoked.
-10. A replacement access-token/refresh-token pair is generated.
-11. The replacement refresh token is persisted.
-12. The client discards the old token pair and uses the new one.
+2. The public authentication rate-limit filter evaluates configured authentication routes before credential processing.
+3. The API validates the supplied data.
+4. The password is verified against its BCrypt hash.
+5. The API returns an access token and a refresh token.
+6. The client sends the access token in the `Authorization` header.
+7. The JWT filter validates the token and populates the Spring Security context.
+8. The authenticated-user rate-limit filter applies the general API policy using the authenticated username.
+9. When the access token expires, the client submits the refresh token to `POST /api/auth/refresh`.
+10. The public authentication rate-limit filter applies the refresh policy before token rotation is attempted.
+11. The API validates the refresh token.
+12. The current refresh token is revoked.
+13. A replacement access-token/refresh-token pair is generated.
+14. The replacement refresh token is persisted.
+15. The client discards the old token pair and uses the new one.
 
 ## Access Tokens
 
@@ -229,14 +234,108 @@ The application is configured without server-side HTTP sessions.
 For each protected request:
 
 1. The client presents the access token.
-2. The JWT filter validates it.
-3. The filter creates the authenticated principal.
-4. Spring Security stores that authentication only for the current request context.
-5. Business services resolve the username through `CurrentUserProvider`.
+2. The public authentication rate-limit filter passes non-authentication API routes through without consuming a public-auth bucket.
+3. The JWT filter validates the access token.
+4. The filter creates the authenticated principal.
+5. Spring Security stores that authentication only for the current request context.
+6. The authenticated-user rate-limit filter applies the general API token bucket using the authenticated username.
+7. Business services resolve the username through `CurrentUserProvider`.
 
 CSRF protection is disabled because authentication uses stateless bearer tokens rather than browser-managed session cookies.
 
 This decision assumes clients send the bearer token explicitly. If authentication is later moved into cookies, the CSRF strategy must be reviewed.
+
+## Rate Limiting
+
+The API uses a Redis-backed Token Bucket algorithm to control abusive request rates without introducing server-side sessions.
+
+Rate limiting is split into two security filters because public authentication requests and authenticated API requests have different identities available at the time they are processed.
+
+### Public Authentication Rate Limiting
+
+`RateLimitFilter` runs before JWT authentication and applies endpoint-specific policies to selected public authentication operations.
+
+The current rules are:
+
+| Method | Endpoint | Bucket identity | Capacity | Refill |
+| --- | --- | --- | ---: | --- |
+| `POST` | `/api/auth/login` | Client IP | 5 | 1 token every 2 seconds |
+| `POST` | `/api/auth/register` | Client IP | 3 | 1 token every 30 seconds |
+| `POST` | `/api/auth/forgot-password` | Client IP | 3 | 1 token every 60 seconds |
+| `POST` | `/api/auth/refresh` | Client IP | 10 | 1 token every second |
+
+The public limiter uses the remote client address as part of the Redis key. When the application is deployed behind a reverse proxy, forwarded-client-address handling must be configured only for trusted proxies before those headers are used for security decisions.
+
+### Authenticated API Rate Limiting
+
+`AuthenticatedRateLimitFilter` runs after the JWT filter.
+
+Once the JWT filter has established the principal, the authenticated limiter creates a bucket key from the authenticated username and applies the general API policy:
+
+~~~text
+capacity: 100 tokens
+refill: 10 tokens per second
+~~~
+
+This creates one shared general-purpose request budget per authenticated user instead of maintaining one rule for every protected endpoint.
+
+The authenticated limiter excludes:
+
+- `/api/auth/**`
+- `/swagger-ui/**`
+- `/v3/api-docs/**`
+- `/actuator/health`
+
+These routes either have separate public-authentication handling or are intentionally excluded from the authenticated-user bucket.
+
+### Filter Order
+
+The security-filter order is:
+
+~~~text
+Public authentication rate-limit filter
+→ JWT filter
+→ Authenticated-user rate-limit filter
+→ Controller
+~~~
+
+The order is significant:
+
+- Public authentication limits must work before an authenticated principal exists.
+- The JWT filter must run before user-based rate limiting so the username is available.
+- Domain controllers and services are reached only after the applicable security filters allow the request.
+
+### Redis Token-Bucket State
+
+Both filters delegate to the same `RateLimitService` and use the same Redis Lua script.
+
+The bucket stores:
+
+- Current token balance.
+- Last-refill timestamp.
+
+Refill is calculated lazily from elapsed time whenever a request arrives. No scheduled refill task is required.
+
+The Lua script atomically performs:
+
+~~~text
+read state
+→ calculate proportional refill
+→ cap tokens at capacity
+→ consume one token when available
+→ persist updated state
+→ refresh bucket TTL
+~~~
+
+Atomic execution prevents concurrent requests from independently reading the same balance and overspending the bucket.
+
+When a bucket has no available token, the request is rejected with:
+
+~~~http
+HTTP/1.1 429 Too Many Requests
+~~~
+
+The rate-limit state is operational Redis data rather than durable domain data. MySQL remains the source of truth for users, tokens, workouts, exercises, goals, and templates.
 
 ## Current-User Abstraction
 
@@ -386,6 +485,7 @@ Typical status codes are:
 | `401 Unauthorized` | Missing, expired, or invalid authentication |
 | `404 Not Found` | Missing or inaccessible user-owned resource |
 | `409 Conflict` | Duplicate resource or invalid lifecycle transition |
+| `429 Too Many Requests` | An applicable public-IP or authenticated-user token bucket has no token available |
 | `500 Internal Server Error` | Unexpected server failure |
 
 Stable application codes allow clients to handle failures without parsing human-readable text.
@@ -402,6 +502,8 @@ The main security-relevant environment variables are:
 | `DB_USERNAME` | Database account used by the application |
 | `DB_PASSWORD` | Database credential |
 | `JWT_SECRET` | Secret used to sign and validate access tokens |
+| `REDIS_HOST` | Redis host used for caching and rate-limit state |
+| `REDIS_PORT` | Redis port used for caching and rate-limit state |
 | `SPRING_JPA_HIBERNATE_DDL_AUTO` | Optional Hibernate schema-strategy override |
 
 Do not commit:
@@ -415,6 +517,8 @@ Do not commit:
 The repository may contain `.env.example`, but it must contain placeholders rather than valid credentials.
 
 Inside Docker Compose, the API connects to MySQL through the internal service name. In production, MySQL should not be exposed to the public internet.
+
+Redis is used for exercise-definition caching and rate-limit bucket state. It should also remain on a private network and must not be exposed directly to untrusted clients.
 
 ## Security Testing
 
@@ -457,7 +561,7 @@ Before a public deployment:
 - [ ] Expose only required Actuator endpoints.
 - [ ] Avoid logging passwords, access tokens, refresh tokens, or reset tokens.
 - [ ] Configure centralized secret management.
-- [ ] Add rate limiting to authentication endpoints.
+- [x] Apply Redis-backed rate limiting to login, registration, forgot-password, refresh, and authenticated API requests.
 - [ ] Monitor failed authentication and token-refresh activity.
 - [ ] Back up MySQL and test the restore process.
 - [ ] Review error responses so internal exception details are not exposed.
@@ -483,9 +587,16 @@ Revoke active refresh tokens after a password change or password reset so old lo
 
 Move access-token and refresh-token lifetimes, issuer, audience, and related values into typed external configuration.
 
-### Authentication Rate Limiting
+### Rate-Limit Hardening
 
-Apply rate limiting to registration, login, refresh, forgot-password, and reset-password operations. The strategy should consider both network origin and account identifier without revealing whether an account exists.
+The current implementation applies Redis-backed Token Bucket limits to login, registration, forgot-password, refresh, and authenticated API requests.
+
+Further hardening should:
+
+- Extend the dedicated public-authentication limiter to other sensitive public operations such as password reset.
+- Consider combining network-origin limits with a privacy-preserving account identifier where appropriate.
+- Configure trusted forwarded-header handling before relying on client IP addresses behind a reverse proxy.
+- Add metrics and alerts for repeated `429 Too Many Requests` responses without logging credentials or tokens.
 
 ### JWT Error Differentiation
 
