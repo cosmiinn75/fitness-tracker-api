@@ -2,11 +2,11 @@
 
 [![Fitness Tracker CI](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml)
 
-A secure REST API for recording strength-training workouts and tracking long-term progress, built with **Java 25**, **Spring Boot 4.1**, and **MySQL 8**.
+A secure REST API for recording strength-training workouts and tracking long-term progress, built with **Java 25**, **Spring Boot 4.1**, **MySQL 8**, and **Redis 8**.
 
-The project is implemented as a modular monolith with a layered architecture and goes beyond basic CRUD operations. It includes JWT authentication with refresh-token rotation, global system exercises and user-owned custom exercises, nested workout management, reusable workout templates, progress analytics, paginated personal records powered by a native SQL window function, and a complete training-goal lifecycle with automatic completion and expiration.
+The project is implemented as a modular monolith with a layered architecture and goes beyond basic CRUD operations. It includes JWT authentication with refresh-token rotation, a password-reset flow, Redis-backed Token Bucket rate limiting, Redis caching for exercise-definition reads, global system exercises and user-owned custom exercises, nested workout management, reusable workout templates, progress analytics, paginated personal records powered by a native SQL window function, and a complete training-goal lifecycle with automatic completion and expiration.
 
-The backend foundation also includes centralized authenticated-user access, dedicated DTO mapper components, standardized API errors using Spring's `ProblemDetail`, Flyway database migrations, automated tests, Docker, health monitoring, and continuous integration.
+The backend foundation also includes centralized authenticated-user access, dedicated DTO mapper components, standardized API errors using Spring's `ProblemDetail`, transaction-aware asynchronous email delivery through Spring application events, Flyway database migrations, automated tests, Docker, health monitoring, and continuous integration.
 
 ## Documentation
 
@@ -27,6 +27,9 @@ Detailed project documentation is available in the following guides:
 - [Database Migrations](#database-migrations)
 - [API Endpoints](#api-endpoints)
 - [Authentication Flow](#authentication-flow)
+- [Redis Caching](#redis-caching)
+- [Redis Rate Limiting](#redis-rate-limiting)
+- [Transactional Async Email Delivery](#transactional-async-email-delivery)
 - [Progress Analytics](#progress-analytics)
 - [Training Goal Lifecycle](#training-goal-lifecycle)
 - [Workout Template Workflow](#workout-template-workflow)
@@ -49,8 +52,11 @@ Detailed project documentation is available in the following guides:
 
 - Secure JWT authentication with access and refresh tokens
 - Persistent refresh-token rotation and revocation
+- Password-reset tokens stored as SHA-256 hashes with refresh-token revocation after reset
+- Redis-backed Token Bucket rate limiting for public authentication routes and authenticated API traffic
 - Complete nested CRUD for workouts, exercises, and sets
 - Global `SYSTEM` exercises combined with user-owned `CUSTOM` exercises
+- Redis-backed exercise-definition caching with targeted invalidation and a 30-minute TTL
 - Reusable workout templates with ordered exercises and target sets
 - Read-only workout-draft generation from saved templates
 - Ownership protection for every user-specific operation
@@ -61,11 +67,12 @@ Detailed project documentation is available in the following guides:
 - Paginated personal records selected with `ROW_NUMBER()` and `PARTITION BY`
 - User-owned training goals with automatic completion, cancellation, and expiration
 - Flyway-managed schema with Hibernate validation
+- Transaction-aware asynchronous password-reset and password-change emails through Spring application events
 - Automated unit, controller, repository, and integration tests
-- Dockerized API and MySQL environment
+- Dockerized API, MySQL, Redis, and Mailpit environment
 - Swagger/OpenAPI documentation with JWT authorization
 - Actuator health monitoring
-- GitHub Actions CI with a real MySQL service container
+- GitHub Actions CI with Testcontainers-backed MySQL and Redis integration tests
 
 ## Recent Backend Foundation Refactor
 
@@ -169,6 +176,81 @@ This allows tests to:
 
 Integration tests also reload persisted entity relationships when necessary, ensuring that API responses are produced from the same database state that would be used in a real request.
 
+
+### Redis-Backed Exercise Cache
+
+Read-heavy exercise-definition queries are cached through Spring Cache with Redis as the backing store.
+
+The cache layer currently uses two cache regions:
+
+- `exerciseDefinitions` — the accessible exercise list keyed by username.
+- `exerciseDefinition` — one accessible exercise keyed by `username:id`.
+
+Redis cache entries use a **30-minute TTL**.
+
+Mutation operations invalidate only the cache entries that can become stale:
+
+- Creating a custom exercise evicts the user's cached exercise list.
+- Updating a custom exercise evicts both the user's cached list and the cached single exercise.
+- Archiving a custom exercise evicts both the list and single-item cache entry.
+
+This keeps MySQL as the source of truth while reducing repeated reads for exercise data that changes relatively infrequently.
+
+### Redis Token-Bucket Rate Limiting
+
+Rate limiting is implemented with Redis and an atomic Lua Token Bucket script.
+
+Two filters are used:
+
+```text
+Public authentication RateLimitFilter
+→ JWTFilter
+→ AuthenticatedRateLimitFilter
+→ Controller
+```
+
+The public filter runs before JWT processing and protects selected authentication endpoints by **client IP**. The authenticated filter runs after JWT validation and applies a shared API budget by **authenticated username**.
+
+The current policies are:
+
+| Scope | Capacity | Refill |
+| --- | ---: | --- |
+| `POST /api/auth/login` | 5 | 1 token every 2 seconds |
+| `POST /api/auth/register` | 3 | 1 token every 30 seconds |
+| `POST /api/auth/forgot-password` | 3 | 1 token every 60 seconds |
+| `POST /api/auth/refresh` | 10 | 1 token every second |
+| Authenticated API | 100 | 10 tokens per second |
+
+The Lua script performs bucket reads, elapsed-time refill calculation, token consumption, state persistence, and TTL refresh atomically inside Redis. Refill is lazy and proportional to elapsed time, so no scheduled refill task is required.
+
+Requests without an available token receive `429 Too Many Requests`.
+
+### Transaction-Aware Async Email Events
+
+Password-related email delivery is decoupled from the transactional service logic through Spring application events.
+
+`ResetTokenService` publishes:
+
+- `PasswordResetRequestedEvent` after creating a password-reset token.
+- `PasswordChangedEvent` after successfully changing a password.
+
+`EmailEventListener` handles both events with:
+
+```java
+@Async
+@TransactionalEventListener(
+        phase = TransactionPhase.AFTER_COMMIT
+)
+```
+
+This gives the email flow two important properties:
+
+- SMTP work runs asynchronously instead of blocking the transactional service method.
+- Email is sent only after the surrounding database transaction commits successfully.
+
+If a transaction rolls back, the transactional listener is not executed and the email is not sent. This prevents users from receiving reset or confirmation messages for database changes that were never committed.
+
+
 ## Features
 
 ### Authentication and Security
@@ -178,9 +260,15 @@ Integration tests also reload persisted entity relationships when necessary, ens
 - Persist refresh tokens in MySQL
 - Rotate refresh tokens when a new access token is requested
 - Revoke refresh tokens during rotation and logout
+- Support forgotten-password recovery with hashed reset tokens
+- Revoke all refresh tokens after a successful password reset
+- Send password-reset and password-change emails asynchronously after transaction commit
 - Hash passwords with BCrypt
 - Use stateless Spring Security configuration
 - Validate access tokens through a custom JWT filter
+- Rate-limit selected public authentication endpoints by client IP
+- Rate-limit authenticated API traffic by authenticated username
+- Execute Token Bucket updates atomically through a Redis Lua script
 - Load database credentials and JWT secrets from environment variables
 - Restrict workouts, templates, goals, and progress data to their authenticated owner
 - Resolve the authenticated username through an injectable `CurrentUserProvider`
@@ -201,6 +289,8 @@ Integration tests also reload persisted entity relationships when necessary, ens
 - Normalize names by trimming whitespace and collapsing repeated spaces
 - Compare normalized names case-insensitively
 - Return exercise type and archive status in API responses
+- Cache exercise lists and single-exercise reads in Redis
+- Evict affected Redis cache entries after create, update, and archive operations
 - Map exercise entities through a dedicated mapper
 - Supported muscle groups:
   - `CHEST`
@@ -319,8 +409,10 @@ Integration tests also reload persisted entity relationships when necessary, ens
 - Authorize Swagger requests with JWT bearer tokens
 - Expose a public Actuator health endpoint
 - Build the API through a multi-stage Docker image
-- Start the API and MySQL together through Docker Compose
+- Start the API, MySQL, Redis, and Mailpit together through Docker Compose
 - Build and test pushes and pull requests through GitHub Actions
+- Use Redis for exercise caching and rate-limit state
+- Use Spring application events for transaction-aware asynchronous email delivery
 - Run scheduled training-goal expiration at midnight
 - Update overdue goals with one transactional JPQL bulk query
 - Persist workout templates through a dedicated Flyway migration
@@ -328,24 +420,28 @@ Integration tests also reload persisted entity relationships when necessary, ens
 
 ## Tech Stack
 
-| Area | Technology                                  |
-| --- |---------------------------------------------|
-| Language | Java 25                                     |
-| Framework | Spring Boot 4.1.0                           |
-| Web | Spring Web MVC                              |
-| Security | Spring Security, JWT, BCrypt                |
-| Persistence | Spring Data JPA, Hibernate                  |
-| Database | MySQL 8                                     |
-| Schema migrations | Flyway                                      |
-| Validation | Jakarta Bean Validation                     |
-| Error responses | Spring `ProblemDetail`                      |
-| API documentation | Springdoc OpenAPI, Swagger UI               |
-| Monitoring | Spring Boot Actuator                        |
-| Scheduling | Spring `@Scheduled`                         |
-| Testing | JUnit 5, Mockito, MockMvc, Spring Boot Test |
-| Build | Maven Wrapper                               |
-| Containers | Docker, Docker Compose                      |
-| CI | GitHub Actions                              |
+| Area | Technology |
+| --- | --- |
+| Language | Java 25 |
+| Framework | Spring Boot 4.1.0 |
+| Web | Spring Web MVC |
+| Security | Spring Security, JWT, BCrypt |
+| Rate limiting | Redis 8, Token Bucket, Lua |
+| Caching | Spring Cache, Redis 8 |
+| Persistence | Spring Data JPA, Hibernate |
+| Database | MySQL 8 |
+| Schema migrations | Flyway |
+| Validation | Jakarta Bean Validation |
+| Async/eventing | Spring Application Events, `@TransactionalEventListener`, `@Async` |
+| Email | Spring Mail, Mailpit for local/Docker development |
+| Error responses | Spring `ProblemDetail` |
+| API documentation | Springdoc OpenAPI, Swagger UI |
+| Monitoring | Spring Boot Actuator |
+| Scheduling | Spring `@Scheduled` |
+| Testing | JUnit 5, Mockito, MockMvc, Spring Boot Test, Testcontainers, Awaitility |
+| Build | Maven Wrapper |
+| Containers | Docker, Docker Compose |
+| CI | GitHub Actions |
 
 ## Architecture
 
@@ -425,6 +521,46 @@ Security components:
 - Populate the Spring Security context
 - Resolve the current principal through `CurrentUserProvider`
 - Keep authentication details separate from business logic
+
+### Redis Cache Layer
+
+`ExerciseDefinitionCacheService` isolates Redis-backed cache behavior from the main exercise-definition business service.
+
+It:
+
+- Uses `@Cacheable` for list and single-item reads.
+- Uses username-aware cache keys to preserve user isolation.
+- Uses `@CacheEvict` / `@Caching` for targeted invalidation.
+- Keeps cache concerns outside the repository layer.
+- Treats MySQL as the authoritative data source.
+
+### Rate-Limit Components
+
+Rate limiting is separated into:
+
+- `RateLimitFilter` for selected public authentication endpoints.
+- `JWTFilter` for access-token validation.
+- `AuthenticatedRateLimitFilter` for authenticated API traffic.
+- `RateLimitService` for executing the Redis Lua script.
+- `RateLimitPolicy` / `RateLimitRule` for reusable policy configuration.
+
+The Redis Lua script atomically reads and updates the Token Bucket state, preventing concurrent requests from overspending the same bucket.
+
+### Async Email Event Flow
+
+Password services publish application events instead of calling the mail sender directly.
+
+```text
+Transactional password service
+→ ApplicationEventPublisher
+→ transaction commits
+→ @TransactionalEventListener(AFTER_COMMIT)
+→ @Async
+→ EmailService
+→ SMTP
+```
+
+This separates database consistency from email I/O while ensuring that emails are not sent for rolled-back operations.
 
 ### Exception Handling
 
@@ -574,6 +710,8 @@ Authorization: Bearer <access-token>
 | `POST` | `/api/auth/login` | Authenticate and return an access/refresh-token pair |
 | `POST` | `/api/auth/refresh` | Rotate a refresh token and return a new token pair |
 | `POST` | `/api/auth/logout` | Revoke a refresh token |
+| `POST` | `/api/auth/forgot-password` | Request a password-reset email without revealing whether the account exists |
+| `POST` | `/api/auth/reset-password` | Reset the password with a valid raw reset token |
 
 ### Exercise Definitions
 
@@ -691,17 +829,158 @@ Pagination defaults:
 ## Authentication Flow
 
 1. A user registers or logs in.
-2. The API returns an access token and refresh token.
-3. The client sends the access token in the `Authorization` header.
-4. Access tokens expire after 15 minutes.
-5. Refresh tokens are persisted in MySQL.
-6. Refresh tokens expire after 7 days.
-7. `/api/auth/refresh` validates the current refresh token.
-8. The current refresh token is revoked.
-9. A new access and refresh-token pair is returned.
-10. `/api/auth/logout` revokes the supplied refresh token.
+2. The public Redis rate-limit filter applies the configured IP-based Token Bucket policy.
+3. The API validates the supplied credentials.
+4. The API returns an access token and refresh token.
+5. The client sends the access token in the `Authorization` header.
+6. `JWTFilter` validates the token and establishes the authenticated principal.
+7. The authenticated Redis rate-limit filter applies the per-user API bucket.
+8. Access tokens expire after 15 minutes.
+9. Refresh tokens are persisted in MySQL and expire after 7 days.
+10. `/api/auth/refresh` is rate-limited before the refresh token is validated.
+11. The current refresh token is revoked.
+12. A new access and refresh-token pair is returned.
+13. `/api/auth/logout` revokes the supplied refresh token.
 
 A successfully rotated refresh token cannot be reused.
+
+## Redis Caching
+
+Exercise-definition reads use Spring Cache backed by Redis.
+
+The current cache regions are:
+
+| Cache | Key | Purpose |
+| --- | --- | --- |
+| `exerciseDefinitions` | `username` | Cache the authenticated user's accessible exercise list |
+| `exerciseDefinition` | `username:id` | Cache one accessible exercise definition |
+
+The configured Redis cache TTL is **30 minutes**.
+
+Cache invalidation follows the mutation that can make data stale:
+
+```text
+create custom exercise
+→ evict exerciseDefinitions::<username>
+
+update/archive custom exercise
+→ evict exerciseDefinitions::<username>
+→ evict exerciseDefinition::<username>:<id>
+```
+
+The cache is an optimization only. MySQL remains the authoritative source of exercise-definition data.
+
+The integration suite uses a real Redis Testcontainer to verify cache population, cache hits, and eviction behavior.
+
+## Redis Rate Limiting
+
+The API uses a Redis-backed Token Bucket implementation with lazy continuous refill.
+
+### Public Authentication Buckets
+
+Selected public authentication routes are limited by client IP:
+
+| Method | Endpoint | Capacity | Refill |
+| --- | --- | ---: | --- |
+| `POST` | `/api/auth/login` | 5 | 1 token every 2 seconds |
+| `POST` | `/api/auth/register` | 3 | 1 token every 30 seconds |
+| `POST` | `/api/auth/forgot-password` | 3 | 1 token every 60 seconds |
+| `POST` | `/api/auth/refresh` | 10 | 1 token every second |
+
+### Authenticated API Bucket
+
+Protected API traffic uses one general bucket per authenticated username:
+
+```text
+capacity = 100 tokens
+refill = 10 tokens / second
+```
+
+Authentication routes, Swagger/OpenAPI, and `/actuator/health` are excluded from this authenticated-user bucket.
+
+### Token Bucket Execution
+
+The Redis Lua script stores:
+
+- `tokens`
+- `last_refill`
+
+For every request it atomically:
+
+1. Reads the current bucket state.
+2. Uses Redis server time.
+3. Calculates the elapsed time since the previous request.
+4. Refills fractional tokens proportionally to elapsed time.
+5. Caps the balance at the configured capacity.
+6. Consumes one token when available.
+7. Persists the new bucket state.
+8. Refreshes the Redis key TTL.
+
+Because refill is calculated when requests arrive, the implementation does not require a scheduled refill job.
+
+When the bucket cannot provide a token, the API returns:
+
+```http
+HTTP/1.1 429 Too Many Requests
+```
+
+The filter order is:
+
+```text
+RateLimitFilter
+→ JWTFilter
+→ AuthenticatedRateLimitFilter
+→ Controller
+```
+
+The public limiter uses the remote client address. Deployments behind a reverse proxy should trust forwarded client-IP headers only from explicitly trusted proxies.
+
+## Transactional Async Email Delivery
+
+Password-reset email delivery uses Spring application events instead of performing SMTP work directly inside the password service.
+
+The current event flow is:
+
+```text
+ResetTokenService
+→ publish PasswordResetRequestedEvent / PasswordChangedEvent
+→ database transaction commits
+→ EmailEventListener
+→ @Async
+→ EmailService
+→ SMTP
+```
+
+`EmailEventListener` combines `@Async` with:
+
+```java
+@TransactionalEventListener(
+        phase = TransactionPhase.AFTER_COMMIT
+)
+```
+
+This means:
+
+- The service transaction is not blocked by SMTP delivery.
+- The listener runs only after a successful database commit.
+- A rollback prevents the email from being sent.
+- Password-reset token creation and outgoing email stay consistent.
+
+For a forgotten-password request, only the SHA-256 hash of the reset token is stored in MySQL. The raw token exists only long enough to be included in the `PasswordResetRequestedEvent` and sent to the user.
+
+After a successful reset:
+
+- The new password is stored as a BCrypt hash.
+- All refresh tokens for the user are revoked.
+- Reset tokens are deleted.
+- A `PasswordChangedEvent` triggers the confirmation email after commit.
+
+Integration tests explicitly verify both behaviors:
+
+```text
+transaction commits   → email service is called asynchronously
+transaction rolls back → email service is not called
+```
 
 ## Progress Analytics
 
@@ -1294,6 +1573,7 @@ Typical status codes include:
 - `401 Unauthorized` for missing or invalid authentication
 - `404 Not Found` for missing or inaccessible user-owned resources
 - `409 Conflict` for duplicate resources or invalid lifecycle transitions
+- `429 Too Many Requests` when a Redis Token Bucket is exhausted
 - `500 Internal Server Error` for unexpected server failures
 
 Example not-found response:
@@ -1353,15 +1633,20 @@ docker compose up --build
 Docker Compose:
 
 1. Starts MySQL 8.
-2. Waits for the database health check.
-3. Starts the API.
-4. Runs Flyway migrations.
-5. Validates the schema through Hibernate.
+2. Starts Redis 8.
+3. Starts Mailpit for local SMTP delivery and email inspection.
+4. Waits for the MySQL health check.
+5. Starts the API after MySQL, Redis, and Mailpit are available.
+6. Runs Flyway migrations.
+7. Validates the schema through Hibernate.
 
 Available services:
 
 - API: `http://localhost:8080`
 - MySQL from the host: `localhost:3307`
+- Redis: `localhost:6379`
+- Mailpit SMTP: `localhost:1025`
+- Mailpit web UI: `http://localhost:8025`
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 - Health check: `http://localhost:8080/actuator/health`
 
@@ -1391,6 +1676,8 @@ This permanently removes the database data stored in the Docker volume.
 
 - Java 25
 - MySQL 8
+- Redis 8
+- An SMTP server; Mailpit is recommended for local development
 
 Create an empty database:
 
@@ -1432,12 +1719,18 @@ http://localhost:8080
 | `DB_USERNAME` | Yes | `root` | Database username |
 | `DB_PASSWORD` | Yes | `your_local_password` | Database password |
 | `JWT_SECRET` | Yes | A long random value | Secret used to sign JWT access tokens |
+| `REDIS_HOST` | No | `localhost` | Redis host used for caching and rate limiting |
+| `REDIS_PORT` | No | `6379` | Redis port |
+| `SPRING_MAIL_HOST` | No | `localhost` | SMTP host used by `EmailService` |
+| `SPRING_MAIL_PORT` | No | `1025` | SMTP port; matches Mailpit by default |
 | `SPRING_JPA_HIBERNATE_DDL_AUTO` | No | `validate` | Hibernate schema strategy override |
 
-Inside Docker, the API uses the Compose service name:
+Inside Docker, the API uses Compose service names:
 
 ```text
-jdbc:mysql://mysql:3306/fitness_tracker_db
+MySQL: jdbc:mysql://mysql:3306/fitness_tracker_db
+Redis: redis:6379
+SMTP:  mailpit:1025
 ```
 
 Do not commit:
@@ -1509,6 +1802,8 @@ The automated suite includes:
 - Real mapper behavior injected through Mockito spies
 - Controller tests with MockMvc
 - Spring Boot integration tests backed by MySQL
+- Redis cache integration tests backed by a real Redis Testcontainer
+- Transaction-aware asynchronous email-event integration tests
 - Authentication and refresh-token tests
 - Ownership and access-control tests
 - Validation and `ProblemDetail` response tests
@@ -1605,6 +1900,8 @@ Integration tests verify:
 - Serialized nested API responses
 - Authentication and ownership boundaries
 - Standardized error responses
+- Real Redis cache population, cache-hit, and eviction behavior
+- Email dispatch after transaction commit and suppression after rollback
 
 Persistence-context cleanup is used where necessary to ensure that requests reload the same relationship state that would be loaded in production.
 
@@ -1615,13 +1912,14 @@ The GitHub Actions workflow runs for pushes and pull requests targeting `main`.
 The pipeline:
 
 1. Checks out the repository.
-2. Starts a MySQL 8 service container.
-3. Configures Java 25.
-4. Restores the Maven dependency cache.
-5. Runs Flyway against the test database.
-6. Compiles the project.
-7. Executes the complete verification lifecycle.
-8. Fails the build when any test fails.
+2. Configures Java 25.
+3. Restores the Maven dependency cache.
+4. Makes Docker available to Testcontainers.
+5. Starts MySQL and Redis Testcontainers when required by integration tests.
+6. Runs Flyway against the MySQL test database.
+7. Compiles the project.
+8. Executes `./mvnw --batch-mode clean verify`.
+9. Fails the build when any test fails.
 
 The current build status is displayed through the badge at the top of this README.
 
@@ -1635,10 +1933,19 @@ fitness-tracker-api/
 ├── src/
 │   ├── main/
 │   │   ├── java/com/cosmin/fitness_tracker_api/
+│   │   │   ├── config/
+│   │   │   │   ├── CacheConfig.java
+│   │   │   │   ├── RateLimitConfig.java
+│   │   │   │   └── SpringAsyncConfig.java
 │   │   │   ├── controller/
 │   │   │   ├── dto/
 │   │   │   ├── enums/
+│   │   │   ├── event/
+│   │   │   │   ├── PasswordChangedEvent.java
+│   │   │   │   └── PasswordResetRequestedEvent.java
 │   │   │   ├── exception/
+│   │   │   ├── listener/
+│   │   │   │   └── EmailEventListener.java
 │   │   │   ├── mapper/
 │   │   │   │   ├── ExerciseDefinitionMapper.java
 │   │   │   │   ├── ProgressMapper.java
@@ -1650,12 +1957,22 @@ fitness-tracker-api/
 │   │   │   │   └── Projection/
 │   │   │   ├── security/
 │   │   │   │   ├── CurrentUserProvider.java
+│   │   │   │   ├── JWTFilter.java
 │   │   │   │   ├── SpringSecurityCurrentUserProvider.java
-│   │   │   │   └── ...
+│   │   │   │   └── rateLimit/
+│   │   │   │       ├── AuthenticatedRateLimitFilter.java
+│   │   │   │       ├── RateLimitFilter.java
+│   │   │   │       ├── RateLimitPolicies.java
+│   │   │   │       └── RateLimitService.java
 │   │   │   └── service/
+│   │   │       ├── EmailService.java
+│   │   │       ├── ExerciseDefinitionCacheService.java
+│   │   │       └── ...
 │   │   └── resources/
 │   │       ├── db/
 │   │       │   └── migration/
+│   │       ├── scripts/
+│   │       │   └── rate_limit_script.lua
 │   │       └── application.properties
 │   └── test/
 │       ├── java/com/cosmin/fitness_tracker_api/
@@ -1680,6 +1997,10 @@ fitness-tracker-api/
 - Refresh tokens are persisted and revocable.
 - Refresh tokens are rotated when used.
 - Refresh tokens expire after 7 days.
+- Password-reset tokens are stored only as SHA-256 hashes and expire after 15 minutes.
+- Successful password reset revokes all refresh tokens for the affected user.
+- Selected public authentication routes are protected by IP-based Redis Token Buckets.
+- Protected API traffic is rate-limited with a per-user Redis Token Bucket after JWT authentication.
 - CSRF is disabled for stateless bearer-token authentication.
 - Database credentials and JWT secrets are externalized.
 - The authenticated username is resolved through `CurrentUserProvider`.
@@ -1691,6 +2012,7 @@ fitness-tracker-api/
 - Only owned custom exercises can be modified.
 - Workout templates are queried by template ID and authenticated username.
 - Another user's resource ID is treated as a missing resource.
+- Password-reset and password-change emails are dispatched asynchronously only after transaction commit.
 - Authentication, Swagger/OpenAPI, and `/actuator/health` are public.
 - All other endpoint groups require authentication.
 
@@ -1700,7 +2022,8 @@ Production deployments should use:
 - Dedicated database credentials
 - A long random JWT secret
 - Separate production configuration
-- Restricted network access to MySQL
+- Restricted network access to MySQL and Redis
+- Trusted reverse-proxy configuration before using forwarded client-IP headers for rate limiting
 - Centralized secret management
 
 ## Roadmap
@@ -1738,15 +2061,22 @@ Planned:
 
 ### Phase 3 — Security Hardening
 
+Completed:
+
+- Add Redis-backed Token Bucket rate limiting to selected authentication endpoints
+- Add general per-user rate limiting for authenticated API requests
+- Hash password-reset tokens before database persistence
+- Revoke active refresh tokens after a successful password reset
+- Dispatch password-related emails asynchronously only after successful transaction commit
+
 Planned:
 
 - Hash refresh tokens before database persistence
-- Revoke active refresh tokens after password changes
+- Revoke active refresh tokens after authenticated password changes
 - Move token lifetimes into external configuration
 - Improve JWT validation and error differentiation
-- Add rate limiting to authentication endpoints
 - Add account-level token revocation
-- Review password-reset token handling
+- Continue reviewing password-reset token handling
 - Add authentication audit events
 - Review CORS configuration for production deployment
 - Improve secret management for deployed environments
@@ -1828,6 +2158,10 @@ While building this project, I practiced:
 - Maintaining both sides of bidirectional relationships
 - Implementing JWT authentication
 - Implementing refresh-token persistence and rotation
+- Implementing secure password-reset tokens with SHA-256-at-rest storage
+- Publishing Spring application events from transactional services
+- Using `@TransactionalEventListener(AFTER_COMMIT)` to coordinate side effects with transaction success
+- Running email delivery asynchronously with `@Async`
 - Protecting user-owned resources
 - Using `POST`, `GET`, `PUT`, `PATCH`, and `DELETE` appropriately
 - Implementing partial-update validation
@@ -1849,6 +2183,11 @@ While building this project, I practiced:
 - Using MySQL window functions
 - Returning native query results through projections
 - Implementing database-level pagination
+- Caching read-heavy data with Spring Cache and Redis
+- Designing targeted cache invalidation after writes
+- Implementing a Redis Token Bucket rate limiter
+- Executing atomic rate-limit state transitions with Redis Lua scripts
+- Separating public-IP and authenticated-user rate-limit policies by filter order
 - Extracting entity-to-DTO mapping into dedicated components
 - Returning standardized API errors with `ProblemDetail`
 - Managing schema evolution with Flyway
@@ -1858,8 +2197,10 @@ While building this project, I practiced:
 - Using spies for real mapper implementations
 - Testing controllers with MockMvc
 - Writing database-backed integration tests
+- Writing Redis-backed cache integration tests with Testcontainers and Awaitility
+- Testing asynchronous transactional event behavior across commit and rollback
 - Handling JPA persistence-context behavior in tests
-- Containerizing Spring Boot and MySQL
+- Containerizing Spring Boot, MySQL, Redis, and Mailpit
 - Automating builds and tests with GitHub Actions
 - Exposing Swagger documentation
 - Exposing operational health checks
@@ -1870,7 +2211,10 @@ While building this project, I practiced:
 The following major areas are implemented:
 
 - Authentication and refresh-token rotation
+- Password reset with hashed reset tokens and refresh-token revocation
+- Redis Token Bucket rate limiting for public and authenticated traffic
 - Global and custom exercise definitions
+- Redis exercise-definition caching
 - Nested workout management
 - Workout duplication
 - Progress analytics
@@ -1883,6 +2227,7 @@ The following major areas are implemented:
 - Centralized current-user access
 - Dedicated DTO mappers
 - Standardized `ProblemDetail` errors
+- Transaction-aware asynchronous email events
 - Flyway migrations
 - Automated tests
 - Docker
