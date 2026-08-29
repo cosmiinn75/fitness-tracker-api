@@ -1,6 +1,6 @@
 # Fitness Tracker API
 
-[![Fitness Tracker CI](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml/badge.svg)](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml)
+[[![Fitness Tracker CI](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/cosmiinn75/fitness-tracker-api/actions/workflows/ci.yml)
 
 A secure REST API for recording strength-training workouts and tracking long-term progress, built with **Java 25**, **Spring Boot 4.1**, and **MySQL 8**.
 
