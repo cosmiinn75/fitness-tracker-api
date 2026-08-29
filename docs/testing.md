@@ -2,9 +2,9 @@
 
 [← Back to README](../README.md)
 
-This document describes the automated testing strategy, test organization, MySQL Testcontainers setup, mapper-testing approach, query-count regression tests, and GitHub Actions pipeline of the Fitness Tracker API.
+This document describes the automated testing strategy, test organization, MySQL and Redis Testcontainers setup, mapper-testing approach, Redis cache integration tests, query-count regression tests, and GitHub Actions pipeline of the Fitness Tracker API.
 
-At the documented repository state, the project contains 116 test methods across 18 executable test classes, plus the shared integration-test base and Testcontainers configuration.
+At the documented repository state, the project contains 126 test methods across 21 executable test classes, plus shared test base and Testcontainers configuration classes.
 
 ## Table of Contents
 
@@ -15,6 +15,7 @@ At the documented repository state, the project contains 116 test methods across
 - [Service Testing Strategy](#service-testing-strategy)
 - [Controller Testing](#controller-testing)
 - [Integration Testing with MySQL](#integration-testing-with-mysql)
+- [Redis Cache Integration Tests](#redis-cache-integration-tests)
 - [Authentication Tests](#authentication-tests)
 - [Exercise-Definition Tests](#exercise-definition-tests)
 - [Workout Tests](#workout-tests)
@@ -43,6 +44,7 @@ The main testing goals are:
 - Test nested workout and template persistence.
 - Validate native SQL ranking logic.
 - Detect JPA N+1 regressions through query counts.
+- Verify Redis-backed exercise-definition caching and cache invalidation against a real Redis instance.
 - Verify mapper output without duplicating mapping stubs in every service test.
 - Keep local and CI verification reproducible.
 
@@ -90,6 +92,8 @@ src/test/
 │   ├── IntegrationTest/
 │   │   ├── AbstractIntegrationTest.java
 │   │   ├── AuthIntegrationTest.java
+│   │   ├── EmailEventListenerIntegrationTest.java
+│   │   ├── ExerciseDefinitionCacheIntegrationTest.java
 │   │   ├── ExerciseDefinitionIntegrationTest.java
 │   │   ├── PersonalRecordRepositoryIntegrationTest.java
 │   │   ├── TestcontainersConfiguration.java
@@ -99,6 +103,7 @@ src/test/
 │   │   └── WorkoutTemplateQueryCountIntegrationTest.java
 │   ├── ServiceTest/
 │   │   ├── AuthServiceTest.java
+│   │   ├── ExerciseDefinitionServiceTest.java
 │   │   ├── ProgressServiceTest.java
 │   │   ├── TrainingGoalServiceTest.java
 │   │   ├── WorkoutServiceTest.java
@@ -115,6 +120,7 @@ src/test/
 | Service unit tests | JUnit 5, Mockito | Business rules, ownership decisions, repository coordination, mapper output |
 | Controller tests | MockMvc, mocked services | Routing, JSON contract, validation, status codes |
 | Repository integration tests | Spring Boot Test, JPA, MySQL Testcontainer | Native SQL, projections, pagination, persistence behavior |
+| Redis cache integration tests | Spring Boot Test, Spring Cache, Redis Testcontainer, Awaitility | Real cache population, cache hits, and invalidation behavior |
 | End-to-end backend integration tests | Spring Boot Test, MockMvc, MySQL Testcontainer | HTTP-to-database behavior, authentication, ownership, serialization |
 | Query-count regression tests | Hibernate Statistics, MySQL Testcontainer | N+1 prevention and constant query behavior |
 | Context smoke test | Spring Boot Test | Application-context startup |
@@ -149,6 +155,19 @@ This arrangement keeps:
 - Mapper transformations real.
 - Constructor injection intact.
 - Spring context startup unnecessary.
+
+`ExerciseDefinitionServiceTest` follows the same service-boundary philosophy while mocking `ExerciseDefinitionCacheService`. It verifies that exercise-definition reads delegate through the cache layer and that create/archive operations trigger the expected cache invalidation without requiring Redis in the unit-test layer.
+
+Current exercise-definition service scenarios include:
+
+- Listing exercise definitions through the cache service.
+- Retrieving one exercise definition through the cache service.
+- Archiving a custom exercise and evicting both list and item cache entries.
+- Creating a custom exercise and evicting the cached list.
+- Rejecting duplicate custom exercise names without persistence or cache eviction.
+- Rejecting names that conflict with system exercises without persistence or cache eviction.
+
+Redis behavior itself is verified separately by the cache integration tests.
 
 Using a real mapper through `@Spy` avoids two common testing problems:
 
@@ -241,6 +260,66 @@ Integration tests verify:
 
 The mail sender is mocked so integration tests do not contact an SMTP service.
 
+## Redis Cache Integration Tests
+
+`ExerciseDefinitionCacheIntegrationTest` verifies Spring Cache behavior against a real Redis 8 Testcontainer instead of mocking the cache infrastructure.
+
+The test context uses:
+
+- A real `RedisCacheManager`.
+- A Redis 8 Alpine Testcontainer connected through Spring Boot service connections.
+- A MySQL 8 Testcontainer required by the full Spring Boot application context.
+- A mocked `ExerciseDefinitionRepository` so repository invocation counts can clearly distinguish cache hits from misses.
+- Awaitility to wait for cache state to become observable without relying on immediate timing assumptions.
+
+The cache integration suite currently contains two tests.
+
+### Cache Hit Behavior
+
+`findAll_ShouldUseRedisCache` verifies that:
+
+1. The configured cache manager is a `RedisCacheManager`.
+2. `ExerciseDefinitionCacheService` is running through a Spring AOP proxy.
+3. The first `findAll(username)` call loads data through the repository.
+4. The result becomes available in the `exerciseDefinitions` Redis cache.
+5. A second call for the same username returns the cached value.
+6. The repository is invoked only once across both reads.
+
+The test waits for the cache entry before issuing the second read:
+
+~~~java
+await()
+        .atMost(Duration.ofSeconds(2))
+        .until(() -> cache.get(username) != null);
+~~~
+
+This protects the observable cache contract without assuming that the Redis entry must be visible at the exact instant the intercepted service method returns.
+
+### Cache Eviction Behavior
+
+`evictList_ShouldRemoveCachedValue` verifies that:
+
+1. The first read populates the Redis cache.
+2. A second read uses the cached value.
+3. `evictList(username)` removes the user's cached exercise-definition list.
+4. The next read reaches the repository again.
+5. The reloaded value is cached again.
+
+Cache cleanup between tests uses `Cache.invalidate()` for the exercise-definition cache regions before Mockito interactions are reset.
+
+The tested behavior is therefore:
+
+~~~text
+repository read
+→ Redis cache population
+→ cache hit
+→ eviction
+→ repository read again
+→ cache repopulation
+~~~
+
+This test complements `ExerciseDefinitionServiceTest`: the service unit test verifies when the application chooses to read from or invalidate the cache layer, while the Redis integration test verifies that Spring Cache, Redis connectivity, serialization, lookup, and eviction work together.
+
 ## Authentication Tests
 
 Authentication tests cover both service/controller behavior and database-backed flows.
@@ -270,7 +349,7 @@ Concurrency and token-reuse-detection scenarios are separate remaining prioritie
 
 ## Exercise-Definition Tests
 
-Exercise-definition integration tests provide broad ownership coverage.
+Exercise-definition service, controller, database integration, and Redis cache integration tests provide broad coverage across business rules, ownership, HTTP behavior, and caching.
 
 They verify:
 
@@ -291,6 +370,13 @@ They verify:
 - The owner can archive a custom exercise.
 - System exercises cannot be archived.
 - Another user's custom exercise cannot be archived.
+
+The dedicated `ExerciseDefinitionServiceTest` additionally verifies:
+
+- Read methods delegate to `ExerciseDefinitionCacheService`.
+- Archiving marks the owned custom exercise as archived and evicts the list and single-item cache entries.
+- Creating a custom exercise persists the normalized `CUSTOM` definition with the authenticated owner and evicts the cached list.
+- Duplicate custom or system exercise names are rejected before save and do not trigger cache eviction.
 
 These tests are important because the exercise catalog combines global data and private data in the same endpoint.
 
@@ -528,8 +614,8 @@ The pipeline:
 2. Configures Java 25.
 3. Restores the Maven dependency cache.
 4. Makes Docker available to Testcontainers.
-5. Starts a MySQL 8 test container through the test configuration.
-6. Applies Flyway migrations.
+5. Starts the Testcontainers required by the executed integration tests, including MySQL 8 and Redis 8 where applicable.
+6. Applies Flyway migrations to the MySQL test database.
 7. Compiles the project.
 8. Runs `./mvnw clean verify`.
 9. Fails the workflow when any verification step fails.
@@ -542,6 +628,7 @@ CI protects:
 - Migration compatibility.
 - Unit and controller behavior.
 - MySQL-backed integration behavior.
+- Redis-backed cache integration behavior.
 - Native SQL.
 - Ownership boundaries.
 - Query-count expectations.
@@ -554,7 +641,7 @@ A new use case should usually add tests in this order:
 
 1. Service tests for happy path and business-rule failures.
 2. Controller tests for route, validation, status, and JSON contract.
-3. Integration tests for persistence, ownership, and serialization.
+3. Integration tests for persistence, ownership, serialization, and infrastructure behavior such as caching when applicable.
 4. Repository tests for custom JPQL/native SQL.
 5. Query-count tests when mapping traverses nested relationships or the endpoint is paginated.
 6. Concurrency tests when correctness depends on uniqueness, rotation, or state transitions.
@@ -588,5 +675,6 @@ The highest-value remaining additions are:
 7. **JaCoCo reporting** with realistic thresholds for critical packages rather than a project-wide 100% target.
 8. **Architecture tests** to enforce layer boundaries, such as preventing controllers from using repositories and mappers from performing persistence.
 9. **Additional query-count tests** for progress summary and weekly/monthly analytics after those endpoints are moved toward database-side aggregation.
+10. **Rate-limit integration tests** for public-IP and authenticated-user buckets, `429 Too Many Requests`, Redis-backed bucket state, and security-filter ordering.
 
 The project already uses Testcontainers and query-count regression tests. Those items should be marked as completed in the README roadmap rather than listed as future work.
