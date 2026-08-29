@@ -17,4 +17,11 @@ public final class RateLimitPolicies {
 
     public static final RateLimitPolicy REFRESH =
             new RateLimitPolicy(10, 1.0, 1000L);
+
+    public static final RateLimitPolicy AUTHENTICATED_API =
+            new RateLimitPolicy(
+                    100,
+                    10.0,
+                    1_000L
+            );
 }

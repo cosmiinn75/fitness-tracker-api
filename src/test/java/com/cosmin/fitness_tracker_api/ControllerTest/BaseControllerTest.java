@@ -1,10 +1,7 @@
 package com.cosmin.fitness_tracker_api.ControllerTest;
 
 import com.cosmin.fitness_tracker_api.security.JWTFilter;
-import com.cosmin.fitness_tracker_api.security.rateLimit.RateLimitAnswer;
-import com.cosmin.fitness_tracker_api.security.rateLimit.RateLimitFilter;
-import com.cosmin.fitness_tracker_api.security.rateLimit.RateLimitPolicy;
-import com.cosmin.fitness_tracker_api.security.rateLimit.RateLimitService;
+import com.cosmin.fitness_tracker_api.security.rateLimit.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -20,4 +17,6 @@ public abstract class BaseControllerTest {
     @MockitoBean
     private JWTFilter jwtFilter;
 
+    @MockitoBean
+    private AuthenticatedRateLimitFilter authenticatedRateLimitFilter;
 }

@@ -1,5 +1,6 @@
 package com.cosmin.fitness_tracker_api.security;
 
+import com.cosmin.fitness_tracker_api.security.rateLimit.AuthenticatedRateLimitFilter;
 import com.cosmin.fitness_tracker_api.security.rateLimit.RateLimitFilter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -21,10 +22,12 @@ public class SecurityConfig {
 
     private final JWTFilter jwtFilter;
     private final RateLimitFilter rateLimitFilter;
+    private final AuthenticatedRateLimitFilter authenticatedRateLimitFilter;
 
-    public SecurityConfig(JWTFilter jwtFilter, RateLimitFilter rateLimitFilter) {
+    public SecurityConfig(JWTFilter jwtFilter, RateLimitFilter rateLimitFilter, AuthenticatedRateLimitFilter authenticatedRateLimitFilter) {
         this.jwtFilter = jwtFilter;
         this.rateLimitFilter = rateLimitFilter;
+        this.authenticatedRateLimitFilter = authenticatedRateLimitFilter;
     }
 
     @Bean
@@ -34,7 +37,7 @@ public class SecurityConfig {
 
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) {
         return http
                 .csrf(config -> config.disable())
                 .sessionManagement(session ->
@@ -54,6 +57,10 @@ public class SecurityConfig {
                 )
                 .addFilterBefore(
                         rateLimitFilter,
+                        JWTFilter.class
+                )
+                .addFilterAfter(
+                        authenticatedRateLimitFilter,
                         JWTFilter.class
                 )
                 .build();
