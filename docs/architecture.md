@@ -4,7 +4,7 @@
 
 This document describes the internal structure, domain model, persistence strategy, and main design decisions of the Fitness Tracker API.
 
-The application is a modular monolith built with Java 25, Spring Boot 4.1, Spring Web MVC, Spring Security, Spring Data JPA, Hibernate, Flyway, and MySQL 8.
+The application is a modular monolith built with Java 25, Spring Boot 4.1, Spring Web MVC, Spring Security, Spring Data JPA, Hibernate, Flyway, MySQL 8, Spring Cache, and Redis 8.
 
 ## Table of Contents
 
@@ -12,6 +12,7 @@ The application is a modular monolith built with Java 25, Spring Boot 4.1, Sprin
 - [Request Lifecycle](#request-lifecycle)
 - [Layer Responsibilities](#layer-responsibilities)
 - [Authenticated-User Boundary](#authenticated-user-boundary)
+- [Caching and Rate Limiting](#caching-and-rate-limiting)
 - [Mapping Boundary](#mapping-boundary)
 - [Domain Model](#domain-model)
 - [Aggregate Boundaries](#aggregate-boundaries)
@@ -44,6 +45,8 @@ The main architectural goals are:
 - Preserve deterministic ordering for nested resources.
 - Use database-level operations for pagination, ranking, and bulk updates where appropriate.
 - Reproduce the same schema through Flyway in local, Docker, test, and CI environments.
+- Reduce repeated exercise-definition reads through Redis-backed caching.
+- Apply request throttling at the security boundary through Redis-backed token buckets.
 - Keep read-only workflows free of persistence side effects.
 
 The application does not currently require microservices, Kafka, or Kubernetes. Those technologies would add operational complexity without solving a demonstrated requirement of the current system.
@@ -54,31 +57,41 @@ The normal path of a protected request is:
 
 ~~~mermaid
 flowchart TD
-    A[API client] -->|HTTP request + JWT| B[JWT security filter]
-    B -->|Authorized request| C[Controller]
-    C -->|Calls| D[Service]
-    D -->|Query| E[Repository]
-    E -->|SQL| F[(MySQL)]
+    A[API client] -->|HTTP request| B[Public authentication rate-limit filter]
+    B --> C[JWT security filter]
+    C -->|Authenticated principal| D[Authenticated-user rate-limit filter]
+    D -->|Allowed request| E[Controller]
+    E -->|Calls| F[Service]
+    F -->|Query| G[Repository]
+    G -->|SQL| H[(MySQL)]
 
-    F -->|Rows| E
-    E -->|Entities| D
-    D -->|Entity| G[Mapper]
-    G -->|Response DTO| D
-    D -->|DTO| C
+    B -->|Token-bucket state| R[(Redis)]
+    D -->|Token-bucket state| R
+
+    H -->|Rows| G
+    G -->|Entities| F
+    F -->|Entity| I[Mapper]
+    I -->|Response DTO| F
+    F -->|DTO| E
+    E -->|HTTP response| D
+    D -->|HTTP response| C
     C -->|HTTP response| B
     B -->|HTTP response| A
 ~~~
 
 1. The client sends an HTTP request and, for protected endpoints, a bearer access token.
-2. The JWT filter validates the token and populates the Spring Security context.
-3. The controller validates request parameters and DTOs.
-4. The controller delegates the use case to a service.
-5. The service obtains the current username through `CurrentUserProvider`.
-6. The service applies business rules, validates ownership, and coordinates repositories.
-7. Repositories load or modify data in MySQL.
-8. A dedicated mapper converts entities, projections, or calculated values into response DTOs.
-9. The controller returns the response and the appropriate HTTP status.
-10. If an exception escapes the use case, the global exception handler converts it into a standardized `ProblemDetail` response.
+2. The public authentication rate-limit filter evaluates configured public authentication routes. Protected application routes pass through this stage without consuming a public-auth bucket.
+3. The JWT filter validates the access token and populates the Spring Security context.
+4. The authenticated-user rate-limit filter applies a Redis-backed token bucket using the authenticated username as the bucket identity.
+5. Requests that exceed an applicable rate limit receive `429 Too Many Requests`.
+6. The controller validates request parameters and DTOs.
+7. The controller delegates the use case to a service.
+8. The service obtains the current username through `CurrentUserProvider`.
+9. The service applies business rules, validates ownership, and coordinates repositories.
+10. Repositories load or modify source-of-truth data in MySQL.
+11. A dedicated mapper converts entities, projections, or calculated values into response DTOs.
+12. The controller returns the response and the appropriate HTTP status.
+13. If an exception escapes the use case, the global exception handler converts it into a standardized `ProblemDetail` response.
 
 ## Layer Responsibilities
 
@@ -90,7 +103,8 @@ flowchart TD
 | Repositories | Execute derived queries, JPQL, native SQL, projections, entity graphs, and bulk updates | Contain HTTP or presentation logic |
 | DTOs | Define the public request and response contract and Bean Validation rules | Expose persistence behavior |
 | Projections | Represent optimized read-only query results | Replace domain entities for write operations |
-| Security components | Validate tokens, populate authentication, expose the current principal | Implement workout, goal, template, or analytics rules |
+| Security components | Validate tokens, populate authentication, expose the current principal, apply public-IP and authenticated-user rate limits | Implement workout, goal, template, or analytics rules |
+| Redis-backed infrastructure | Cache exercise-definition reads and store token-bucket state used by rate limiting | Replace MySQL as the source of truth for domain data |
 | Exception handler | Translate known failures into stable API errors | Contain use-case logic |
 | Scheduled components | Run time-based maintenance operations | Change state through read endpoints |
 
@@ -126,6 +140,96 @@ exercise accessibility + username
 ~~~
 
 An identifier owned by another user is treated as a missing resource. This avoids exposing whether another user's resource exists.
+
+## Caching and Rate Limiting
+
+Redis is used for two separate infrastructure concerns:
+
+- Caching read-heavy exercise-definition responses.
+- Storing distributed token-bucket state for request rate limiting.
+
+MySQL remains the source of truth for users, workouts, exercise definitions, goals, templates, and authentication data. Redis stores derived or short-lived operational state that can be rebuilt from application behavior.
+
+### Exercise-Definition Caching
+
+Exercise-definition reads use Spring Cache with Redis through `ExerciseDefinitionCacheService`.
+
+Two cache regions are used:
+
+~~~text
+exerciseDefinitions
+→ accessible exercise-definition list for one username
+
+exerciseDefinition
+→ one accessible exercise definition identified by username + exercise ID
+~~~
+
+The application configures a 30-minute Redis cache TTL.
+
+The read flow is:
+
+~~~mermaid
+flowchart LR
+    A[ExerciseDefinitionService] --> B[ExerciseDefinitionCacheService]
+    B -->|Cache lookup| C[(Redis)]
+    C -->|Hit| B
+    C -->|Miss| D[ExerciseDefinitionRepository]
+    D --> E[(MySQL)]
+    E --> D
+    D --> F[ExerciseDefinitionMapper]
+    F --> B
+    B -->|Cache result| C
+~~~
+
+Cache invalidation follows mutation boundaries:
+
+- Creating a custom exercise evicts the authenticated user's exercise-definition list.
+- Updating a custom exercise evicts both the user's list and the affected single-exercise entry.
+- Archiving a custom exercise evicts both the user's list and the affected single-exercise entry.
+
+Caching therefore reduces repeated reads without moving ownership rules or persistence responsibility out of the service/repository layers.
+
+### Token-Bucket Rate Limiting
+
+Rate limiting uses a Redis-backed Token Bucket algorithm.
+
+Bucket state contains the current token balance and the last-refill timestamp. Refill is calculated lazily when a request arrives, so no refill scheduler is required.
+
+A Lua script performs the complete bucket transition atomically in Redis:
+
+~~~text
+read bucket state
+→ calculate elapsed time
+→ refill proportionally
+→ cap at bucket capacity
+→ consume one token when available
+→ persist updated state
+→ refresh bucket TTL
+~~~
+
+Atomic execution prevents concurrent requests from reading and updating the same bucket independently.
+
+Rate limiting is split across two filters with different identities:
+
+| Request group | Bucket identity | Filter position |
+| --- | --- | --- |
+| Public authentication operations such as login, registration, password recovery, and token refresh | Client IP address | Before JWT authentication |
+| Authenticated API requests | Authenticated username | After JWT authentication |
+
+The authenticated limiter excludes public authentication routes, Swagger/OpenAPI routes, and the public health endpoint.
+
+The intended security-filter order is:
+
+~~~text
+Public authentication rate-limit filter
+→ JWT filter
+→ Authenticated-user rate-limit filter
+→ Controller
+~~~
+
+This order is important because authenticated-user buckets can only be selected after the JWT filter has established the principal.
+
+Rate-limit policies define bucket capacity and refill rate independently from the filtering logic. `RateLimitService` and the Lua script are shared by both public and authenticated rate-limit filters.
 
 ## Mapping Boundary
 
@@ -438,6 +542,8 @@ Application startup follows this sequence:
 
 Applied migrations are immutable. Every schema change must be introduced in a new versioned migration rather than by editing a migration that may already exist in another environment.
 
+Redis is not part of the relational schema and is not managed by Flyway. Cached responses and token-bucket entries are operational state with expiration policies, while durable domain state remains in MySQL.
+
 ## JPA Loading and Query Strategy
 
 The project uses several targeted approaches instead of applying one loading strategy globally.
@@ -546,10 +652,13 @@ fitness-tracker-api/
 │   │   │   ├── repository/
 │   │   │   │   └── Projection/
 │   │   │   ├── security/
+│   │   │   │   └── rateLimit/
 │   │   │   └── service/
 │   │   └── resources/
 │   │       ├── db/
 │   │       │   └── migration/
+│   │       ├── scripts/
+│   │       │   └── rate_limit_script.lua
 │   │       └── application.properties
 │   └── test/
 │       ├── java/com/cosmin/fitness_tracker_api/
@@ -583,5 +692,8 @@ When extending the project, preserve these rules:
 12. Applied Flyway migrations are never edited.
 13. New failure modes are translated into the common `ProblemDetail` contract.
 14. Important loading strategies are protected by integration or query-count regression tests.
+15. Redis caching is an acceleration layer; MySQL remains the source of truth for domain data.
+16. Exercise-definition mutations invalidate affected Redis cache entries.
+17. Rate-limit bucket transitions remain atomic and are executed through the shared Redis Lua script.
 
 For authentication, authorization, and production security requirements, see [security.md](security.md). For the complete testing approach, see [testing.md](testing.md).
