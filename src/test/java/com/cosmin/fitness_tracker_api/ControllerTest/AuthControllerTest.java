@@ -1,18 +1,17 @@
 package com.cosmin.fitness_tracker_api.ControllerTest;
 
-import com.cosmin.fitness_tracker_api.controller.AuthController;
 import com.cosmin.fitness_tracker_api.DTO.AuthResponse;
+import com.cosmin.fitness_tracker_api.controller.AuthController;
 import com.cosmin.fitness_tracker_api.security.JWTFilter;
+import com.cosmin.fitness_tracker_api.security.rateLimit.RateLimitService;
 import com.cosmin.fitness_tracker_api.service.AuthService;
 import org.junit.jupiter.api.MediaType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -23,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers = AuthController.class)
 @AutoConfigureMockMvc(addFilters = false)
-public class AuthControllerTest {
+public class AuthControllerTest extends BaseControllerTest {
 
 
     @Autowired
@@ -33,7 +32,7 @@ public class AuthControllerTest {
     private AuthService authService;
 
     @MockitoBean
-    private JWTFilter jwtFilter;
+    private RateLimitService rateLimitService;
 
     @Test
     void register_WithValidCredentials_ShouldReturnTokens() throws Exception {

@@ -23,17 +23,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(ProgressController.class)
 @AutoConfigureMockMvc(addFilters = false)
-public class ProgressControllerTest {
+public class ProgressControllerTest extends BaseControllerTest{
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockitoBean
     private ProgressService progressService;
-
-    @MockitoBean
-    private JWTFilter  jwtFilter;
-
 
     @Test
     void getWeeklyVolume_ShouldReturnVolumeProgressResponse200() throws Exception {

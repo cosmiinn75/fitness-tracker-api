@@ -31,16 +31,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(TrainingGoalController.class)
-public class TrainingGoalControllerTest {
+public class TrainingGoalControllerTest extends BaseControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockitoBean
     private TrainingGoalService trainingGoalService;
-
-    @MockitoBean
-    private JWTFilter jwtFilter;
 
     @Test
     public void createTrainingGoal_ShouldReturnTrainingGoalResponse() throws Exception {

@@ -25,16 +25,13 @@ import java.util.List;
 
 @WebMvcTest(controllers = WorkoutController.class)
 @AutoConfigureMockMvc(addFilters = false)
-public class WorkoutControllerTest {
+public class WorkoutControllerTest extends BaseControllerTest{
 
     @Autowired
     MockMvc mockMvc;
 
     @MockitoBean
     WorkoutService workoutService;
-
-    @MockitoBean
-    JWTFilter jwtFilter;
 
     @Test
     void getAllWorkouts_ShouldReturnPagedResponse() throws Exception {

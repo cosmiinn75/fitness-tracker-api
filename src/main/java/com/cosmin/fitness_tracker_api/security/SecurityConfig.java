@@ -1,5 +1,7 @@
 package com.cosmin.fitness_tracker_api.security;
 
+import com.cosmin.fitness_tracker_api.security.rateLimit.RateLimitFilter;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -18,8 +20,11 @@ public class SecurityConfig {
 
 
     private final JWTFilter jwtFilter;
-    public SecurityConfig(JWTFilter jwtFilter) {
+    private final RateLimitFilter rateLimitFilter;
+
+    public SecurityConfig(JWTFilter jwtFilter, RateLimitFilter rateLimitFilter) {
         this.jwtFilter = jwtFilter;
+        this.rateLimitFilter = rateLimitFilter;
     }
 
     @Bean
@@ -43,8 +48,40 @@ public class SecurityConfig {
                 )
                 .exceptionHandling(exception ->
                         exception.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(
+                        jwtFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                )
+                .addFilterBefore(
+                        rateLimitFilter,
+                        JWTFilter.class
+                )
                 .build();
+    }
+
+
+    @Bean
+    public FilterRegistrationBean<RateLimitFilter> rateLimitFilterRegistration(
+            RateLimitFilter filter
+    ) {
+        FilterRegistrationBean<RateLimitFilter> registration =
+                new FilterRegistrationBean<>(filter);
+
+        registration.setEnabled(false);
+
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<JWTFilter> jwtFilterRegistration(
+            JWTFilter jwtFilter
+    ) {
+        FilterRegistrationBean<JWTFilter> registration =
+                new FilterRegistrationBean<>(jwtFilter);
+
+        registration.setEnabled(false);
+
+        return registration;
     }
 
 }

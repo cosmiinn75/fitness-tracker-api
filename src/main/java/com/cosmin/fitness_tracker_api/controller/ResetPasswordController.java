@@ -38,9 +38,17 @@ public class ResetPasswordController {
                     provided email exists.
                     """
     )
-    @ApiResponse(
-            responseCode = "202",
-            description = "Password reset request accepted"
+    @ApiResponses(
+            {
+                    @ApiResponse(
+                            responseCode = "202",
+                            description = "Password reset request accepted"
+                    ),
+                    @ApiResponse(
+                            responseCode = "429",
+                            description = "Too many requests. Please try again later"
+                    )
+            }
     )
     @PostMapping("/forgot-password")
     public ResponseEntity<Void> forgotPassword(
@@ -50,7 +58,6 @@ public class ResetPasswordController {
 
         return ResponseEntity.accepted().build();
     }
-
 
 
     @Operation(

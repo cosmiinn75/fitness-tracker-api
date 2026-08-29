@@ -29,16 +29,13 @@ import static org.mockito.Mockito.when;
 
 @WebMvcTest(ExerciseDefinitionController.class)
 @AutoConfigureMockMvc(addFilters = false)
-public class ExerciseDefinitionControllerTest {
+public class ExerciseDefinitionControllerTest extends BaseControllerTest{
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockitoBean
     private ExerciseDefinitionService exerciseDefinitionService;
-
-    @MockitoBean
-    private JWTFilter  jwtFilter;
 
 
     @Test

@@ -43,6 +43,10 @@ public class AuthController {
             @ApiResponse(
                     responseCode = "409",
                     description = "Username or email already exists"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PostMapping("/register")
@@ -68,6 +72,10 @@ public class AuthController {
             @ApiResponse(
                     responseCode = "401",
                     description = "Invalid username or password"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PostMapping("/login")
@@ -93,6 +101,10 @@ public class AuthController {
             @ApiResponse(
                     responseCode = "401",
                     description = "Refresh token is invalid, expired or revoked"
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests. Please try again later"
             )
     })
     @PostMapping("/refresh")
